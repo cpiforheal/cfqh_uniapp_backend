@@ -1,0 +1,510 @@
+import Taro from '@tarojs/taro'
+import { IS_WEAPP, MINIAPP_ENV } from '@/config/env'
+import {
+  practiceHomeMock,
+  profileMock,
+  questionBankMock,
+  questionDetailMock,
+} from '@/mock/nursing'
+import type {
+  AuthorizationInfo,
+  AuthorizationStatus,
+  ConfusingPointSummary,
+  Difficulty,
+  KnowledgePointTag,
+  NursingKnowledgeCard,
+  PracticeHomeOverview,
+  PracticeQuestionSummary,
+  ProfileOverview,
+  QuestionBankOverview,
+  QuestionCatalogItem,
+  QuestionDetail,
+  QuestionOption,
+  QuestionType,
+  VideoLessonSummary,
+} from '@/types/study'
+
+const OPEN_ID_STORAGE_KEY = 'cfqh_open_id'
+const TOKEN_STORAGE_KEY = 'cfqh_token_code'
+
+const lockedAuthorization: AuthorizationInfo = {
+  status: 'unauthorized',
+  tokenCode: '',
+  expiresText: '输入学习通行码后解锁',
+  resourceScopeText: '医护题库、解析、案例材料、公开讲解',
+}
+
+const lockedCatalog: QuestionCatalogItem[] = [
+  { moduleCode: 'anatomy', moduleName: '人体解剖学', chapter: '人体解剖学', chapterSort: 1, subChapterCount: 12, mockChapters: ['运动系统', '消化系统', '神经系统'], totalQuestions: 0, totalVideos: 0, completedQuestions: 0, completionRate: 0, difficultyLabel: '待解锁', locked: true, iconText: '解' },
+  { moduleCode: 'physiology', moduleName: '生理学', chapter: '生理学', chapterSort: 2, subChapterCount: 10, mockChapters: ['细胞生理', '血液', '循环系统'], totalQuestions: 0, totalVideos: 0, completedQuestions: 0, completionRate: 0, difficultyLabel: '待解锁', locked: true, iconText: '生' },
+  { moduleCode: 'clinical_medicine', moduleName: '临床医学概论', chapter: '临床医学概论', chapterSort: 3, subChapterCount: 11, mockChapters: ['症状学', '呼吸系统疾病', '脑血管疾病'], totalQuestions: 0, totalVideos: 0, completedQuestions: 0, completionRate: 0, difficultyLabel: '待解锁', locked: true, iconText: '临' },
+  { moduleCode: 'clinical_skills', moduleName: '临床技能操作', chapter: '临床技能操作', chapterSort: 4, subChapterCount: 6, mockChapters: ['技能一', '技能二', '技能三'], totalQuestions: 0, totalVideos: 0, completedQuestions: 0, completionRate: 0, difficultyLabel: '待解锁', locked: true, iconText: '技' },
+]
+
+export function isAuthorized(authorization?: Pick<AuthorizationInfo, 'status'> | AuthorizationStatus | null) {
+  const status = typeof authorization === 'string' ? authorization : authorization?.status
+  return status === 'authorized'
+}
+
+export function getLockedPracticeHomeOverview(): PracticeHomeOverview {
+  return {
+    ...practiceHomeMock,
+    authorization: lockedAuthorization,
+    progress: { done: 0, total: 0, percent: 0 },
+    todayProblem: {
+      id: 'locked-question',
+      title: '激活后查看今日练习',
+      stem: '激活后查看今日练习',
+      type: 'single_choice',
+      difficulty: 'basic',
+      difficultyText: '待解锁',
+      knowledgePoints: [],
+      estimatedMinutes: 0,
+      chapter: '医护大类',
+    },
+    dailyQuestion: undefined,
+    continueQuestion: undefined,
+    recommendedQuestions: [],
+    recentMistakes: [],
+    recommendedVideos: [],
+    knowledgeCards: [],
+    confusingPoints: [],
+    weeklyCompletedCount: 0,
+    suggestion: '输入学习通行码后解锁完整题库、解析、错题和公开讲解。',
+  }
+}
+
+export function getLockedQuestionBankOverview(): QuestionBankOverview {
+  return {
+    ...questionBankMock,
+    authorization: lockedAuthorization,
+    catalog: lockedCatalog,
+    questions: [],
+  }
+}
+
+interface ApiQuestion {
+  id: string
+  title: string
+  stem: string
+  type: QuestionType
+  difficulty: Difficulty
+  knowledgeTags: string
+  chapter?: string
+  options?: QuestionOption[]
+  answer?: string
+  analysis?: string
+  progress?: { current: number; total: number }
+  nextQuestionId?: string | null
+  isFavorite?: boolean
+  inMistakeBook?: boolean
+  wrongCount?: number
+  caseMaterial?: {
+    id: string
+    title: string
+    background: string
+    keywords: string
+    analysisFocus: string
+  } | null
+  confusingPoint?: {
+    id: string
+    title: string
+    leftConcept: string
+    rightConcept: string
+    contrastSummary: string
+  } | null
+  memoryTip?: {
+    id: string
+    title: string
+    tip: string
+  } | null
+  relatedVideo?: {
+    id: string
+    title: string
+    duration: number
+    coverUrl?: string
+    videoUrl?: string
+  } | null
+}
+
+interface ApiVideo {
+  id: string
+  title: string
+  duration: number
+  difficulty: Difficulty
+  knowledgeTags: string
+  moduleCode?: string
+  moduleName?: string
+  chapter?: string
+  coverUrl?: string
+  assetKey?: string
+  videoUrl?: string
+}
+
+interface ApiPracticeHome {
+  subjectCode: 'nursing'
+  subjectName: string
+  authorization?: { status: string }
+  progress?: { done: number; total: number; percent: number }
+  continueQuestion?: ApiQuestion | null
+  dailyQuestion?: ApiQuestion | null
+  recommendedQuestions?: ApiQuestion[]
+  dailyPractice?: { questionId?: string; questionTitle: string; knowledgeTags: string } | null
+  recentMistakes?: Array<ApiQuestion & { wrongCount?: number }>
+  recommendedVideos?: ApiVideo[]
+  confusingPoints?: Array<{ id: string; title: string; contrastSummary: string }>
+  memoryTips?: Array<{ id: string; title: string; tip: string; relatedKnowledgeTags: string }>
+}
+
+type RequestOptions = {
+  method?: 'GET' | 'POST' | 'DELETE'
+  data?: Record<string, unknown>
+  header?: Record<string, string>
+  authRequired?: boolean
+}
+
+function getOpenId() {
+  return Taro.getStorageSync<string>(OPEN_ID_STORAGE_KEY) || MINIAPP_ENV.devOpenId
+}
+
+function getTokenCode() {
+  return Taro.getStorageSync<string>(TOKEN_STORAGE_KEY) || MINIAPP_ENV.devTokenCode
+}
+
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T | null> {
+  try {
+    if (MINIAPP_ENV.useCloudGateway && IS_WEAPP) {
+      const response = await Taro.cloud.callFunction({
+        name: MINIAPP_ENV.cloudGatewayName,
+        data: {
+          path,
+          method: options.method || 'GET',
+          data: options.data,
+        },
+      })
+      const result = response.result as { ok?: boolean; data?: T; error?: string } | T | undefined
+      if (result && typeof result === 'object' && 'ok' in result) {
+        if (!result.ok) {
+          console.warn(`cloud request failed: ${path}`, result.error)
+          return null
+        }
+        return result.data ?? null
+      }
+      return (result as T) ?? null
+    }
+
+    const openId = getOpenId()
+    const response = await Taro.request<T>({
+      url: `${MINIAPP_ENV.apiBase}${path}`,
+      method: options.method || 'GET',
+      data: options.data,
+      timeout: 15000,
+      header: {
+        'content-type': 'application/json',
+        ...(openId ? { 'x-open-id': openId } : {}),
+        ...(options.header || {}),
+      },
+    })
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      console.warn(`request failed: ${path}`, response.statusCode, response.data)
+      return null
+    }
+
+    return response.data
+  } catch (error) {
+    console.warn(`request failed: ${path}`, error)
+    return null
+  }
+}
+
+async function ensureLogin() {
+  const openId = getOpenId()
+  await request('/auth/wechat-login', {
+    method: 'POST',
+    data: {
+      ...(openId ? { openId } : {}),
+      nickname: '医护同学',
+      avatarUrl: '',
+    },
+  })
+  return openId
+}
+
+function difficultyText(difficulty?: string) {
+  if (difficulty === 'advanced') return '较难'
+  if (difficulty === 'medium') return '中等'
+  return '基础'
+}
+
+function mapKnowledgeTags(tags?: string): KnowledgePointTag[] {
+  return String(tags || '')
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .map((name, index) => ({ id: `kp-${index}-${name}`, name }))
+}
+
+function normalizeQuestion(input: Partial<ApiQuestion> & { knowledgePoints?: KnowledgePointTag[]; estimatedMinutes?: number }): PracticeQuestionSummary {
+  const difficulty = (input.difficulty || 'basic') as Difficulty
+  return {
+    id: input.id || 'question-fallback',
+    title: input.title || '待补充题目',
+    stem: input.stem || input.title || '待补充题干',
+    type: (input.type || 'single_choice') as QuestionType,
+    difficulty,
+    difficultyText: difficultyText(difficulty),
+    knowledgePoints: input.knowledgePoints || mapKnowledgeTags(input.knowledgeTags),
+    options: Array.isArray(input.options) ? input.options : undefined,
+    estimatedMinutes: input.estimatedMinutes || 5,
+    wrongCount: input.wrongCount || 0,
+    chapter: input.chapter,
+  }
+}
+
+function normalizeVideo(item: ApiVideo): VideoLessonSummary {
+  return {
+    id: item.id,
+    title: item.title,
+    duration: item.duration,
+    difficulty: item.difficulty || 'basic',
+    difficultyText: difficultyText(item.difficulty),
+    knowledgePoints: mapKnowledgeTags(item.knowledgeTags),
+    moduleCode: item.moduleCode,
+    moduleName: item.moduleName,
+    chapter: item.chapter,
+    coverUrl: item.coverUrl,
+    assetKey: item.assetKey,
+    videoUrl: item.videoUrl,
+  }
+}
+
+function normalizeAuthorization(result?: { authorized?: boolean; reason?: string; authorization?: { expiresAt?: string; licenseToken?: { code?: string } } } | null): AuthorizationInfo {
+  return {
+    status: result?.authorized ? 'authorized' : 'unauthorized',
+    tokenCode: result?.authorization?.licenseToken?.code || getTokenCode(),
+    expiresText: result?.authorization?.expiresAt ? `有效期至 ${String(result.authorization.expiresAt).slice(0, 10)}` : '已激活后可使用完整资源',
+    resourceScopeText: '医护题库、解析、案例材料、公开讲解',
+    reason: result?.reason,
+  }
+}
+
+export async function activateLicense(code: string) {
+  const openId = await ensureLogin()
+  const result = await request<{ authorized: boolean; reason?: string; authorization?: { expiresAt?: string; licenseToken?: { code?: string } } }>('/license/activate', {
+    method: 'POST',
+    data: { ...(openId ? { openId } : {}), code },
+  })
+
+  if (result?.authorized) {
+    Taro.setStorageSync(TOKEN_STORAGE_KEY, result.authorization?.licenseToken?.code || code)
+  }
+
+  return result
+}
+
+export function getLocalPracticeHomeOverview(): PracticeHomeOverview {
+  return getLockedPracticeHomeOverview()
+}
+
+export function getLocalQuestionBankOverview(): QuestionBankOverview {
+  return getLockedQuestionBankOverview()
+}
+
+export function getLocalQuestionDetail(id?: string): QuestionDetail {
+  return questionDetailMock[id || ''] ?? questionDetailMock['q-001']
+}
+
+export async function getLicenseStatus() {
+  const openId = await ensureLogin()
+  const query = openId ? `?openId=${encodeURIComponent(openId)}` : ''
+  const result = await request<{ authorized: boolean; reason?: string; authorization?: { expiresAt?: string; licenseToken?: { code?: string } } }>(`/license/status${query}`)
+  return result || { authorized: false, reason: 'request_failed' }
+}
+
+export async function getPracticeHomeOverview(): Promise<PracticeHomeOverview> {
+  const licenseStatus = await getLicenseStatus()
+
+  if (!licenseStatus.authorized) {
+    return {
+      ...getLockedPracticeHomeOverview(),
+      authorization: normalizeAuthorization(licenseStatus),
+    }
+  }
+
+  const home = await request<ApiPracticeHome>('/practice-home')
+
+  if (!home) {
+    if (!MINIAPP_ENV.useMockFallback) throw new Error('practice_home_request_failed')
+    return {
+      ...practiceHomeMock,
+      authorization: normalizeAuthorization(licenseStatus),
+    }
+  }
+
+  const dailyQuestion = home.dailyQuestion ? normalizeQuestion(home.dailyQuestion) : practiceHomeMock.dailyQuestion || practiceHomeMock.todayProblem
+  const continueQuestion = home.continueQuestion ? normalizeQuestion(home.continueQuestion) : dailyQuestion
+  const recommendedQuestions = (home.recommendedQuestions || [])
+    .map(normalizeQuestion)
+    .filter((question) => question.id !== continueQuestion?.id)
+  if (recommendedQuestions.length === 0 && dailyQuestion) {
+    recommendedQuestions.push(dailyQuestion)
+  }
+  const recentMistakes = home.recentMistakes?.map((item) => ({ ...normalizeQuestion(item), isMistake: true, wrongCount: item.wrongCount || 1 })) || practiceHomeMock.recentMistakes
+  const recommendedVideos = home.recommendedVideos?.map(normalizeVideo) || practiceHomeMock.recommendedVideos
+  const confusingPoints: ConfusingPointSummary[] = home.confusingPoints?.map((item) => ({ id: item.id, title: item.title, contrast: item.contrastSummary })) || practiceHomeMock.confusingPoints
+  const knowledgeCards: NursingKnowledgeCard[] = home.memoryTips?.map((item) => ({
+    id: item.id,
+    title: item.title,
+    summary: `关联知识点：${item.relatedKnowledgeTags}`,
+    keywords: item.relatedKnowledgeTags.split(',').filter(Boolean),
+    memoryTip: item.tip,
+  })) || practiceHomeMock.knowledgeCards
+
+  return {
+    ...practiceHomeMock,
+    subjectName: home.subjectName || '医护大类',
+    authorization: normalizeAuthorization(licenseStatus),
+    progress: home.progress || practiceHomeMock.progress,
+    todayProblem: dailyQuestion,
+    dailyQuestion,
+    continueQuestion,
+    recommendedQuestions: recommendedQuestions.slice(0, 5),
+    recentMistakes,
+    recommendedVideos,
+    confusingPoints,
+    knowledgeCards,
+  }
+}
+
+export async function getQuestionBankOverview(): Promise<QuestionBankOverview> {
+  const licenseStatus = await getLicenseStatus()
+  if (!licenseStatus.authorized) {
+    return {
+      ...getLockedQuestionBankOverview(),
+      authorization: normalizeAuthorization(licenseStatus),
+    }
+  }
+
+  const catalog = await request<QuestionCatalogItem[]>('/catalog')
+  if (!catalog || catalog.length === 0) {
+    if (!MINIAPP_ENV.useMockFallback) return { ...questionBankMock, catalog: [], questions: [] }
+    return getLocalQuestionBankOverview()
+  }
+
+  return {
+    ...questionBankMock,
+    catalog: catalog.map((item) => ({
+      ...item,
+      iconText: item.iconText || '题',
+    })),
+  }
+}
+
+export async function getQuestionDetail(id: string): Promise<QuestionDetail> {
+  const detail = await request<ApiQuestion>(`/questions/${id}`)
+  if (!detail) {
+    if (!MINIAPP_ENV.useMockFallback) throw new Error('question_detail_request_failed')
+    return getLocalQuestionDetail(id)
+  }
+
+  return {
+    id: detail.id,
+    title: detail.title,
+    stem: detail.stem,
+    type: detail.type,
+    difficulty: detail.difficulty,
+    difficultyText: difficultyText(detail.difficulty),
+    knowledgePoints: mapKnowledgeTags(detail.knowledgeTags),
+    options: detail.options || [],
+    answer: detail.answer || '',
+    analysis: detail.analysis || '',
+    progress: detail.progress || { current: 1, total: 1 },
+    nextQuestionId: detail.nextQuestionId,
+    caseMaterial: detail.caseMaterial
+      ? {
+          id: detail.caseMaterial.id,
+          title: detail.caseMaterial.title,
+          background: detail.caseMaterial.background,
+          keywords: detail.caseMaterial.keywords.split(',').filter(Boolean),
+          analysisFocus: detail.caseMaterial.analysisFocus.split(';').filter(Boolean),
+        }
+      : undefined,
+    confusingPoint: detail.confusingPoint || undefined,
+    memoryTip: detail.memoryTip || undefined,
+    relatedVideo: detail.relatedVideo || undefined,
+    isFavorite: Boolean(detail.isFavorite),
+    inMistakeBook: Boolean(detail.inMistakeBook),
+    wrongCount: detail.wrongCount || 0,
+  }
+}
+
+export async function getProfileOverview(): Promise<ProfileOverview> {
+  const licenseStatus = await getLicenseStatus()
+  const authorization = normalizeAuthorization(licenseStatus)
+
+  if (!licenseStatus.authorized) {
+    return {
+      ...profileMock,
+      authorization,
+      practiceCount: 0,
+      mistakeCount: 0,
+      favoriteCount: 0,
+    }
+  }
+
+  const [me, mistakes] = await Promise.all([
+    request<{ nickname?: string; authorization?: { licenseToken?: { code: string }; expiresAt?: string } }>('/auth/me'),
+    request<Array<{ id: string }>>('/mistakes'),
+  ])
+
+  if (!me) return { ...profileMock, authorization }
+
+  return {
+    ...profileMock,
+    nickname: me.nickname || '医护同学',
+    authorization: {
+      ...authorization,
+      tokenCode: me.authorization?.licenseToken?.code || getTokenCode(),
+      expiresText: me.authorization?.expiresAt ? `有效期至 ${String(me.authorization.expiresAt).slice(0, 10)}` : authorization.expiresText,
+    },
+    mistakeCount: mistakes?.length ?? profileMock.mistakeCount,
+  }
+}
+
+export async function submitPracticeRecord(questionId: string, isCorrect: boolean, submittedAnswer?: string, progress?: { current?: number; total?: number }) {
+  const openId = await ensureLogin()
+  return request('/practice-records', {
+    method: 'POST',
+    data: {
+      ...(openId ? { openId } : {}),
+      questionId,
+      isCorrect,
+      submittedAnswer,
+      practiceMode: 'daily',
+      sequenceNo: progress?.current,
+      totalCount: progress?.total,
+    },
+  })
+}
+
+export async function getModuleQuestions(moduleCode: string): Promise<PracticeQuestionSummary[]> {
+  const moduleQuestions = await request<ApiQuestion[]>(`/modules/${moduleCode}/questions`)
+  if (!moduleQuestions || moduleQuestions.length === 0) return []
+
+  return moduleQuestions.map((question) => normalizeQuestion(question))
+}
+
+export async function getVideoLessons(moduleCode?: string): Promise<VideoLessonSummary[]> {
+  const query = moduleCode ? `?moduleCode=${moduleCode}` : ''
+  const videos = await request<ApiVideo[]>(`/videos${query}`)
+  return videos?.map(normalizeVideo) || (MINIAPP_ENV.useMockFallback ? practiceHomeMock.recommendedVideos : [])
+}
+
+export async function addFavorite(questionId: string) {
+  const openId = await ensureLogin()
+  return request('/favorites', {
+    method: 'POST',
+    data: { ...(openId ? { openId } : {}), questionId },
+  })
+}

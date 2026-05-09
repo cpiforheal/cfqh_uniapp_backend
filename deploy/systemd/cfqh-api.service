@@ -1,0 +1,16 @@
+[Unit]
+Description=CFQH Procedure API
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/cfqh/api/current
+EnvironmentFile=/opt/cfqh/api/.env
+ExecStart=/usr/bin/node dist/src/main.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

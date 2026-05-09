@@ -1,0 +1,255 @@
+@use '../../styles/theme.scss' as *;
+
+.page {
+  min-height: 100vh;
+  padding: 72px 32px 60px;
+  background: $color-bg-page;
+  box-sizing: border-box;
+}
+
+.hero {
+  padding-top: 12px;
+}
+
+.brandBadge {
+  display: inline-flex;
+  align-items: center;
+}
+
+.brandText {
+  color: $color-primary;
+  font-size: $font-hint;
+  font-weight: 800;
+}
+
+.title {
+  display: block;
+  margin-top: 28px;
+  color: $color-text-primary;
+  font-size: $font-heading;
+  font-weight: 800;
+  line-height: 1.42;
+}
+
+.desc {
+  display: block;
+  margin-top: 18px;
+  color: $color-text-muted;
+  font-size: $font-body;
+  line-height: 1.7;
+}
+
+.formCard {
+  margin-top: 44px;
+  padding: 34px 30px 30px;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: #ffffff;
+  box-shadow: $shadow-float;
+}
+
+.formHeader,
+.formActions {
+  display: flex;
+  align-items: center;
+}
+
+.formHeader {
+  justify-content: space-between;
+}
+
+.label {
+  color: $color-text-regular;
+  font-size: $font-body;
+  font-weight: 800;
+}
+
+.formActions {
+  gap: 14px;
+}
+
+.miniBtn {
+  height: 48px;
+  padding: 0 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-pill;
+  background: $color-primary-soft;
+}
+
+.miniBtn:active {
+  opacity: 0.72;
+}
+
+.miniBtnText {
+  color: $color-primary;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.inputWrap {
+  display: flex;
+  align-items: center;
+  height: 108px;
+  margin-top: 20px;
+  padding: 0 28px;
+  border: 2px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-bg-subtle;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.inputWrap:focus-within {
+  border-color: $color-primary;
+  background: #ffffff;
+}
+
+.inputWrapError {
+  border-color: $color-danger;
+  background: #fff6f3;
+}
+
+.input {
+  flex: 1;
+  color: $color-text-primary;
+  font-size: $font-heading;
+  font-weight: 800;
+  letter-spacing: 4px;
+  font-family: 'SF Mono', 'Menlo', monospace;
+}
+
+.counter {
+  color: #8b9ca1;
+  font-size: $font-hint;
+  font-weight: 600;
+}
+
+.placeholder {
+  color: $color-text-placeholder;
+  font-size: $font-body;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.helperText {
+  display: block;
+  margin-top: 14px;
+  color: #8b9ca1;
+  font-size: $font-hint;
+  line-height: 1.5;
+}
+
+.errorText {
+  display: block;
+  margin-top: 14px;
+  color: $color-danger;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.button {
+  height: 96px;
+  margin-top: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-lg;
+  background: $color-primary;
+  box-shadow: $shadow-primary;
+  color: #ffffff;
+  font-size: 32px;
+  font-weight: 800;
+}
+
+.button:active {
+  opacity: 0.85;
+}
+
+.buttonDisabled {
+  background: #c9d7d8;
+  box-shadow: none;
+  color: #ffffff;
+  opacity: 1;
+}
+
+.sourceHint {
+  margin-top: 28px;
+  padding: 22px 24px;
+  border-radius: $radius-sm;
+  background: $color-bg-subtle;
+}
+
+.sourceTitle {
+  display: block;
+  color: $color-text-regular;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.sourceDesc {
+  display: block;
+  margin-top: 10px;
+  color: $color-text-muted;
+  font-size: $font-hint;
+  line-height: 1.65;
+}
+
+.benefits {
+  margin-top: 34px;
+}
+
+.benefitsTitle {
+  display: block;
+  color: $color-text-regular;
+  font-size: $font-title;
+  font-weight: 800;
+}
+
+.benefitGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.benefitCard {
+  min-height: 188px;
+  padding: 20px 12px 18px;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: #ffffff;
+  box-shadow: $shadow-card;
+  text-align: center;
+}
+
+.benefitIcon {
+  width: 54px;
+  height: 54px;
+  margin: 0 auto 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-sm;
+  background: $color-primary-soft;
+  color: $color-primary;
+  font-size: 26px;
+  font-weight: 800;
+}
+
+.benefitTitle {
+  display: block;
+  color: $color-text-regular;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.benefitDesc {
+  display: block;
+  margin-top: 8px;
+  color: $color-text-muted;
+  font-size: $font-hint;
+  line-height: 1.45;
+}

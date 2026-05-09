@@ -1,0 +1,241 @@
+@use '../../styles/theme.scss' as *;
+
+.page {
+  min-height: 100vh;
+  padding: 26px 24px 130px;
+  background: $color-bg-page;
+  box-sizing: border-box;
+}
+
+.topBar {
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.navSpacer {
+  width: 56px;
+}
+
+.title {
+  flex: 1;
+  text-align: center;
+  color: #17364c;
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.activateBanner {
+  height: 76px;
+  margin-top: 18px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #d8ecee;
+  border-radius: 12px;
+  background: #f2fbfb;
+  box-sizing: border-box;
+}
+
+.bannerText {
+  flex: 1;
+  color: #758893;
+  font-size: 23px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activateButton {
+  height: 48px;
+  min-width: 112px;
+  margin-left: 14px;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 24px;
+  background: $color-primary;
+  box-shadow: 0 8px 18px rgba(15, 127, 131, 0.18);
+  box-sizing: border-box;
+}
+
+.activateButtonText {
+  color: #ffffff;
+  font-size: 23px;
+  font-weight: 800;
+}
+
+.list {
+  margin-top: 18px;
+}
+
+.catalogCard {
+  min-height: 150px;
+  margin-top: 18px;
+  padding: 24px 22px 22px;
+  border: 1px solid #e6f0f1;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgba(24, 67, 76, 0.045);
+  box-sizing: border-box;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+}
+
+.iconBox {
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  background: #e9f8f8;
+}
+
+.iconText {
+  color: $color-primary;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.chapterTitle {
+  flex: 1;
+  margin-left: 18px;
+  color: #17364c;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.arrow {
+  color: #415766;
+  font-size: 42px;
+  line-height: 1;
+}
+
+.lockText {
+  flex-shrink: 0;
+  padding: 7px 12px;
+  border-radius: 12px;
+  background: #eef8f8;
+  color: $color-primary;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.metaRow {
+  margin-top: 19px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.metaText {
+  color: #7c8d97;
+  font-size: 23px;
+  line-height: 1;
+}
+
+.difficultyTag {
+  padding: 7px 14px;
+  border-radius: 8px;
+  background: #fff3ea;
+  color: #e89143;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.hardTag {
+  background: #fff0ec;
+  color: #ef785f;
+}
+
+.progressRow {
+  margin-top: 17px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.progressLabel {
+  color: #7c8d97;
+  font-size: 23px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.progressTrack {
+  width: 170px;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e9eff0;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 999px;
+  background: $color-primary;
+}
+
+.bottomPrompt {
+  position: fixed;
+  left: 24px;
+  right: 24px;
+  bottom: 86px;
+  height: 70px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #cce9e9;
+  border-radius: 14px;
+  background: rgba(235, 249, 249, 0.96);
+  box-sizing: border-box;
+  box-shadow: 0 8px 20px rgba(0, 157, 166, 0.08);
+}
+
+.bottomText {
+  flex: 1;
+  color: #758893;
+  font-size: 22px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bottomButton {
+  height: 48px;
+  min-width: 108px;
+  margin-left: 12px;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 24px;
+  background: $color-primary;
+  box-sizing: border-box;
+}
+
+.bottomButtonText {
+  color: #ffffff;
+  font-size: 23px;
+  font-weight: 800;
+}
+
+.catalogCard:active,
+.activateButton:active,
+.bottomButton:active {
+  opacity: 0.72;
+}

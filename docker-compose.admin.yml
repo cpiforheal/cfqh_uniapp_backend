@@ -1,0 +1,14 @@
+services:
+  admin-web:
+    build:
+      context: ./admin
+      args:
+        UMI_APP_API_BASE: /api
+        UMI_APP_DEFAULT_ADMIN_TOKEN: ""
+    image: cfqh-procedure-admin-web:demo
+    container_name: cfqh-admin-web
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

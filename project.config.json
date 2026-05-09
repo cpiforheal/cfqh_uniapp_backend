@@ -1,0 +1,29 @@
+{
+  "setting": {
+    "es6": true,
+    "postcss": true,
+    "minified": true,
+    "uglifyFileName": false,
+    "enhance": true,
+    "packNpmRelationList": [],
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    },
+    "useCompilerPlugins": false,
+    "minifyWXML": true
+  },
+  "compileType": "miniprogram",
+  "simulatorPluginLibVersion": {},
+  "packOptions": {
+    "ignore": [],
+    "include": []
+  },
+  "appid": "wx9fa36f92c1775f62",
+  "editorSetting": {},
+  "miniprogramRoot": "dist/",
+  "srcMiniprogramRoot": "dist/",
+  "cloudfunctionRoot": "cloudfunctions/",
+  "description": "专转本高数自学辅助微信小程序"
+}

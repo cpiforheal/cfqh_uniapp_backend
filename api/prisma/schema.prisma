@@ -1,0 +1,223 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum LicenseStatus {
+  unused
+  bound
+  disabled
+  expired
+}
+
+enum ContentStatus {
+  draft
+  published
+  offline
+}
+
+enum SubjectCode {
+  nursing
+  math
+}
+
+enum QuestionType {
+  single_choice
+  multiple_choice
+  judgment
+  short_answer
+  case_analysis
+}
+
+model User {
+  id             String              @id @default(cuid())
+  openId         String              @unique
+  nickname       String?
+  avatarUrl      String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  authorization  UserAuthorization?
+  practiceRecords PracticeRecord[]
+  favorites      Favorite[]
+  mistakes       Mistake[]
+}
+
+model LicenseToken {
+  id            String         @id @default(cuid())
+  code          String         @unique
+  status        LicenseStatus  @default(unused)
+  subjectScope  SubjectCode    @default(nursing)
+  resourceScope String         @default("all")
+  maxBindCount  Int            @default(1)
+  boundUserId   String?
+  boundOpenId   String?
+  boundAt       DateTime?
+  expiresAt     DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  authorization UserAuthorization[]
+}
+
+model UserAuthorization {
+  id            String       @id @default(cuid())
+  userId        String       @unique
+  licenseTokenId String
+  subjectScope  SubjectCode  @default(nursing)
+  resourceScope String       @default("all")
+  activatedAt   DateTime     @default(now())
+  expiresAt     DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  user          User         @relation(fields: [userId], references: [id])
+  licenseToken  LicenseToken @relation(fields: [licenseTokenId], references: [id])
+}
+
+model KnowledgePoint {
+  id          String        @id @default(cuid())
+  subjectCode SubjectCode   @default(nursing)
+  name        String
+  chapter     String
+  sort        Int           @default(1)
+  status      ContentStatus @default(draft)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Question {
+  id            String        @id @default(cuid())
+  subjectCode   SubjectCode   @default(nursing)
+  moduleCode    String        @default("anatomy")
+  moduleName    String        @default("人体解剖学")
+  chapter       String        @default("待补充小章节")
+  chapterSort   Int           @default(1)
+  title         String
+  stem          String
+  type          QuestionType
+  difficulty    String
+  knowledgeTags String
+  optionsJson   String        @default("[]")
+  answer        String
+  analysis      String
+  source        String?
+  status        ContentStatus @default(draft)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model CaseMaterial {
+  id                   String        @id @default(cuid())
+  subjectCode          SubjectCode   @default(nursing)
+  title                String
+  background           String
+  keywords             String
+  relatedKnowledgeTags String
+  analysisFocus        String
+  status               ContentStatus @default(draft)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+}
+
+model ConfusingPoint {
+  id              String        @id @default(cuid())
+  subjectCode     SubjectCode   @default(nursing)
+  title           String
+  leftConcept     String
+  rightConcept    String
+  contrastSummary String
+  status          ContentStatus @default(draft)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model MemoryTip {
+  id                   String        @id @default(cuid())
+  subjectCode          SubjectCode   @default(nursing)
+  title                String
+  tip                  String
+  relatedKnowledgeTags String
+  status               ContentStatus @default(draft)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+}
+
+model VideoLesson {
+  id            String        @id @default(cuid())
+  subjectCode   SubjectCode   @default(nursing)
+  moduleCode    String        @default("anatomy")
+  moduleName    String        @default("人体解剖学")
+  chapter       String        @default("待补充小章节")
+  title         String
+  duration      Int
+  difficulty    String
+  knowledgeTags String
+  coverUrl      String?
+  assetKey      String?
+  videoUrl      String?
+  status        ContentStatus @default(draft)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model VideoAsset {
+  id          String        @id @default(cuid())
+  subjectCode SubjectCode   @default(nursing)
+  filename    String
+  fileKey     String        @unique
+  sizeMB      Float         @default(0)
+  source      String        @default("local")
+  downloadUrl String?
+  status      ContentStatus @default(draft)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model DailyPractice {
+  id            String        @id @default(cuid())
+  subjectCode   SubjectCode   @default(nursing)
+  date          DateTime
+  questionId    String
+  questionTitle String
+  knowledgeTags String
+  status        ContentStatus @default(draft)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model PracticeRecord {
+  id              String   @id @default(cuid())
+  userId          String
+  questionId      String
+  submittedAnswer String?
+  isCorrect       Boolean
+  practiceMode    String   @default("daily")
+  sequenceNo      Int?
+  totalCount      Int?
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id])
+}
+
+model Favorite {
+  id         String   @id @default(cuid())
+  userId     String
+  questionId String
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, questionId])
+}
+
+model Mistake {
+  id         String   @id @default(cuid())
+  userId     String
+  questionId String
+  wrongCount Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, questionId])
+}

@@ -1,0 +1,104 @@
+name: Build dist artifacts
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - demo
+  workflow_dispatch:
+
+jobs:
+  admin-dist:
+    name: Build admin dist
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: admin/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build admin
+        run: pnpm build
+        env:
+          UMI_APP_API_BASE: /api
+          UMI_APP_DEFAULT_ADMIN_TOKEN: ""
+
+      - name: Pack admin dist
+        run: tar -czf ../admin-dist.tar.gz -C dist .
+
+      - name: Upload admin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-dist
+          path: admin-dist.tar.gz
+          retention-days: 14
+
+  api-runtime:
+    name: Build API runtime
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: api/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm prisma:generate
+
+      - name: Build API
+        run: pnpm build
+
+      - name: Test API
+        run: pnpm test
+
+      - name: Keep production dependencies
+        run: pnpm prune --prod
+
+      - name: Pack API runtime
+        run: |
+          mkdir -p ../api-runtime/prisma
+          cp -R dist ../api-runtime/dist
+          cp package.json pnpm-lock.yaml ../api-runtime/
+          cp prisma/schema.prisma prisma/seed.js ../api-runtime/prisma/
+          cp -R node_modules ../api-runtime/node_modules
+          tar -czf ../api-runtime.tar.gz -C ../api-runtime .
+
+      - name: Upload API artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-runtime
+          path: api-runtime.tar.gz
+          retention-days: 14

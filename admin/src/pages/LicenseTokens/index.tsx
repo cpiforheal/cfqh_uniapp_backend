@@ -1,0 +1,214 @@
+import { CopyOutlined, ReloadOutlined } from '@ant-design/icons'
+import { ProColumns, ProTable, StatisticCard } from '@ant-design/pro-components'
+import { Alert, Button, Col, Empty, Input, Popconfirm, Row, Select, Space, Tag, Typography, message } from 'antd'
+import { useMemo, useRef, useState } from 'react'
+import type { ActionType } from '@ant-design/pro-components'
+import { SubjectAwarePageContainer } from '@/components/SubjectAwarePageContainer'
+import { deleteStudentLicenseToken, disableStudentLicenseToken, extendStudentLicenseToken, queryAdminLicenseTokens } from '@/services/adminNursing'
+import type { AdminLicenseTokenRow } from '@/types/content'
+
+function formatDate(value?: string | null, fallback = '-') {
+  return value ? String(value).slice(0, 10) : fallback
+}
+
+function licenseStatusTag(status?: AdminLicenseTokenRow['status']) {
+  if (status === 'bound') return <Tag color="green">已绑定</Tag>
+  if (status === 'expired') return <Tag color="orange">已过期</Tag>
+  if (status === 'disabled') return <Tag color="red">已禁用</Tag>
+  return <Tag>未使用</Tag>
+}
+
+function copyText(value?: string | null) {
+  if (!value) {
+    message.warning('暂无可复制内容')
+    return
+  }
+  navigator.clipboard?.writeText(value)
+  message.success('已复制')
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (!(error instanceof Error)) return fallback
+  const detail = error.message.replace(/^后台接口请求失败：HTTP \d+\s*/, '').trim()
+  try {
+    const parsed = JSON.parse(detail) as { message?: unknown }
+    return typeof parsed.message === 'string' ? parsed.message : fallback
+  } catch {
+    return detail || fallback
+  }
+}
+
+export default function LicenseTokensPage() {
+  const actionRef = useRef<ActionType>()
+  const [keyword, setKeyword] = useState('')
+  const [status, setStatus] = useState('all')
+  const [latestRows, setLatestRows] = useState<AdminLicenseTokenRow[]>([])
+
+  const summary = useMemo(() => {
+    return {
+      total: latestRows.length,
+      bound: latestRows.filter((item) => item.status === 'bound').length,
+      unused: latestRows.filter((item) => item.status === 'unused').length,
+      disabled: latestRows.filter((item) => item.status === 'disabled').length,
+    }
+  }, [latestRows])
+
+  const columns: ProColumns<AdminLicenseTokenRow>[] = [
+    {
+      title: '授权码',
+      dataIndex: 'code',
+      width: 180,
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Typography.Text code copyable={{ text: record.code }}>{record.code}</Typography.Text>
+          <Typography.Text type="secondary">{record.subjectScope === 'nursing' ? '医护大类' : record.subjectScope}</Typography.Text>
+        </Space>
+      ),
+    },
+    { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => licenseStatusTag(record.status) },
+    {
+      title: '绑定账号',
+      dataIndex: 'boundOpenId',
+      ellipsis: true,
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Typography.Text>{record.user?.nickname || (record.boundOpenId ? '微信用户' : '未绑定')}</Typography.Text>
+          {record.boundOpenId ? <Typography.Text type="secondary" copyable={{ text: record.boundOpenId }}>{record.boundOpenId}</Typography.Text> : null}
+        </Space>
+      ),
+    },
+    { title: '颁发时间', dataIndex: 'createdAt', width: 120, renderText: (value) => formatDate(value) },
+    { title: '绑定时间', dataIndex: 'boundAt', width: 120, renderText: (value) => formatDate(value) },
+    { title: '到期时间', dataIndex: 'expiresAt', width: 130, renderText: (value) => formatDate(value, '长期/未设置') },
+    {
+      title: '操作',
+      valueType: 'option',
+      width: 180,
+      render: (_, record) => [
+        <Button key="copy" size="small" icon={<CopyOutlined />} onClick={() => copyText(record.code)}>复制</Button>,
+        <Button
+          key="extend"
+          size="small"
+          disabled={record.status === 'disabled'}
+          onClick={async () => {
+            try {
+              await extendStudentLicenseToken(record.id, 30)
+              message.success('已延期 30 天')
+              actionRef.current?.reload()
+            } catch (error) {
+              console.warn('extend license token failed', error)
+              message.error('授权码延期失败')
+            }
+          }}
+        >
+          延期
+        </Button>,
+        <Popconfirm key="disable" title="确认禁用该授权码？" onConfirm={async () => {
+          try {
+            await disableStudentLicenseToken(record.id)
+            message.success('已禁用授权码')
+            actionRef.current?.reload()
+          } catch (error) {
+            console.warn('disable license token failed', error)
+            message.error('授权码禁用失败')
+          }
+        }}>
+          <Button size="small" danger disabled={record.status === 'disabled'}>禁用</Button>
+        </Popconfirm>,
+        <Popconfirm
+          key="delete"
+          title="确认删除该授权码？"
+          description="仅用于清理未使用、已禁用或已过期且不再关联账号授权的记录，删除后不可恢复。"
+          onConfirm={async () => {
+            try {
+              await deleteStudentLicenseToken(record.id)
+              message.success('已删除授权码')
+              actionRef.current?.reload()
+            } catch (error) {
+              console.warn('delete license token failed', error)
+              message.error(getErrorMessage(error, '授权码删除失败'))
+            }
+          }}
+        >
+          <Button size="small" danger disabled={record.status === 'bound'}>删除</Button>
+        </Popconfirm>,
+      ],
+    },
+  ]
+
+  return (
+    <SubjectAwarePageContainer title="授权码台账" content="记录系统已颁发的所有授权码、绑定账号、状态、颁发时间和到期信息。">
+      <Alert
+        showIcon
+        type="info"
+        style={{ marginBottom: 12 }}
+        message="发码记录以后端为准"
+        description="同一微信账号只保留一个有效授权码；误点生成的历史码会保留台账记录，但会被收口为禁用状态。长期未使用、已禁用或已过期且不再关联账号授权的码可删除清理。"
+      />
+      <ProTable<AdminLicenseTokenRow>
+        actionRef={actionRef}
+        rowKey="id"
+        columns={columns}
+        request={async () => {
+          try {
+            const rows = await queryAdminLicenseTokens({ keyword: keyword.trim(), status })
+            setLatestRows(rows)
+            return { data: rows, success: true }
+          } catch (error) {
+            console.warn('query license tokens failed', error)
+            message.error('授权码台账加载失败，请检查后端服务')
+            return { data: [], success: true }
+          }
+        }}
+        search={false}
+        size="small"
+        pagination={{ pageSize: 10, showSizeChanger: true }}
+        locale={{ emptyText: <Empty description="暂无授权码记录" /> }}
+        headerTitle="授权码明细"
+        toolBarRender={() => [
+          <Input
+            key="keyword"
+            allowClear
+            value={keyword}
+            onChange={(event) => setKeyword(event.target.value)}
+            placeholder="搜索授权码 / openId"
+            style={{ width: 240 }}
+          />,
+          <Select
+            key="status"
+            value={status}
+            onChange={setStatus}
+            style={{ width: 130 }}
+            options={[
+              { label: '全部状态', value: 'all' },
+              { label: '未使用', value: 'unused' },
+              { label: '已绑定', value: 'bound' },
+              { label: '已禁用', value: 'disabled' },
+              { label: '已过期', value: 'expired' },
+            ]}
+          />,
+          <Button key="reload" icon={<ReloadOutlined />} onClick={() => actionRef.current?.reload()}>查询</Button>,
+        ]}
+        expandable={{
+          expandedRowRender: (record) => (
+            <Row gutter={[12, 10]}>
+              <Col xs={24} md={8}><Typography.Text type="secondary">授权码 ID：</Typography.Text><Typography.Text code copyable={{ text: record.id }}>{record.id}</Typography.Text></Col>
+              <Col xs={24} md={8}><Typography.Text type="secondary">绑定用户 ID：</Typography.Text><Typography.Text code copyable={record.boundUserId ? { text: record.boundUserId } : undefined}>{record.boundUserId || '-'}</Typography.Text></Col>
+              <Col xs={24} md={8}><Typography.Text type="secondary">资源范围：</Typography.Text><Typography.Text>{record.resourceScope || 'all'}</Typography.Text></Col>
+              <Col xs={24} md={8}><Typography.Text type="secondary">最大绑定数：</Typography.Text><Typography.Text>{record.maxBindCount}</Typography.Text></Col>
+              <Col xs={24} md={8}><Typography.Text type="secondary">更新时间：</Typography.Text><Typography.Text>{formatDate(record.updatedAt)}</Typography.Text></Col>
+            </Row>
+          ),
+        }}
+        tableExtraRender={() => (
+          <Row gutter={[12, 12]}>
+            <Col xs={24} md={6}><StatisticCard statistic={{ title: '当前筛选总数', value: summary.total }} /></Col>
+            <Col xs={24} md={6}><StatisticCard statistic={{ title: '已绑定', value: summary.bound }} /></Col>
+            <Col xs={24} md={6}><StatisticCard statistic={{ title: '未使用', value: summary.unused }} /></Col>
+            <Col xs={24} md={6}><StatisticCard statistic={{ title: '已禁用', value: summary.disabled }} /></Col>
+          </Row>
+        )}
+      />
+    </SubjectAwarePageContainer>
+  )
+}

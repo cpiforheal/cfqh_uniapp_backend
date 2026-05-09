@@ -1,0 +1,43 @@
+// 主色
+$color-primary: #138b8f;
+$color-primary-dark: #0f7f83;
+$color-primary-soft: #e6f3f3;
+$color-primary-ghost: rgba(19, 139, 143, 0.1);
+
+// 语义色
+$color-warning: #f29f3d;
+$color-warning-soft: rgba(242, 159, 61, 0.12);
+$color-danger: #e55a3c;
+$color-danger-soft: rgba(229, 90, 60, 0.12);
+$color-success: $color-primary;
+
+// 文本
+$color-text-primary: #12334b;
+$color-text-regular: #17364c;
+$color-text-muted: #6d7e89;
+$color-text-placeholder: #a4b4b8;
+
+// 背景
+$color-bg-page: #f4f8f8;
+$color-bg-card: #ffffff;
+$color-bg-subtle: #f8fbfb;
+$color-border: #e2eded;
+$color-divider: #eef3f3;
+
+// 圆角
+$radius-sm: 12px;
+$radius-md: 18px;
+$radius-lg: 28px;
+$radius-pill: 999px;
+
+// 字号
+$font-hint: 22px;
+$font-body: 26px;
+$font-title: 30px;
+$font-heading: 38px;
+$font-display: 46px;
+
+// 阴影
+$shadow-card: 0 12px 28px rgba(12, 79, 82, 0.06);
+$shadow-float: 0 16px 36px rgba(12, 79, 82, 0.08);
+$shadow-primary: 0 14px 28px rgba(15, 127, 131, 0.24);

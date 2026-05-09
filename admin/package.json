@@ -1,0 +1,30 @@
+{
+  "name": "cfqh-procedure-admin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "专转本医护大类自学辅助后台管理端",
+  "scripts": {
+    "dev": "max dev",
+    "build": "max build",
+    "preview": "max preview --port 8001",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^6.1.0",
+    "@ant-design/pro-components": "^2.8.10",
+    "@umijs/max": "^4.5.0",
+    "antd": "^5.29.1",
+    "echarts": "^6.0.0",
+    "katex": "^0.16.45",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/katex": "^0.16.8",
+    "@types/react": "^18.3.27",
+    "@types/react-dom": "^18.3.7",
+    "typescript": "^5.9.3"
+  },
+  "packageManager": "pnpm@10.18.3"
+}

@@ -1,0 +1,364 @@
+@use '../../styles/theme.scss' as *;
+
+.page {
+  min-height: 100vh;
+  padding: 34px 24px 150px;
+  background: $color-bg-page;
+  box-sizing: border-box;
+}
+
+.progressHeader {
+  padding: 8px 2px 2px;
+}
+
+.progressLabel {
+  display: block;
+  color: $color-primary-dark;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.progressTrack {
+  height: 8px;
+  margin-top: 14px;
+  overflow: hidden;
+  border-radius: $radius-pill;
+  background: $color-primary-soft;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: $radius-pill;
+  background: $color-primary;
+}
+
+.tagRow,
+.answerPanel,
+.reviewTabs,
+.option,
+.bottomBar {
+  display: flex;
+  align-items: center;
+}
+
+.questionCard,
+.answerPanel,
+.reviewCard {
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-bg-card;
+  box-shadow: $shadow-card;
+}
+
+.questionCard {
+  margin-top: 22px;
+  padding: 28px 24px;
+}
+
+.tagRow {
+  gap: 18px;
+}
+
+.typeTag {
+  padding: 8px 16px;
+  border-radius: $radius-sm;
+  background: $color-primary-soft;
+  color: $color-primary;
+  font-size: $font-hint;
+  font-weight: 800;
+}
+
+.levelText {
+  color: $color-text-muted;
+  font-size: 24px;
+}
+
+.questionTitle {
+  display: block;
+  margin-top: 24px;
+  color: $color-text-regular;
+  font-size: $font-title;
+  font-weight: 800;
+  line-height: 1.6;
+}
+
+.options {
+  margin-top: 22px;
+}
+
+.option {
+  min-height: 76px;
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: #ffffff;
+  transition: background-color 0.2s, border-color 0.2s, transform 0.2s;
+}
+
+.optionKey {
+  width: 48px;
+  height: 48px;
+  margin-right: 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #cfd9de;
+  border-radius: $radius-pill;
+  color: #38515f;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.optionText {
+  flex: 1;
+  color: #4b5f6b;
+  font-size: 25px;
+  line-height: 1.55;
+}
+
+.optionStatus {
+  flex-shrink: 0;
+  margin-left: 16px;
+  color: #ffffff;
+  font-size: $font-hint;
+  font-weight: 800;
+}
+
+.optionActive {
+  background: $color-primary-soft;
+  border-color: $color-primary;
+}
+
+.optionCorrect {
+  background: $color-primary;
+  border-color: $color-primary;
+}
+
+.optionWrong {
+  background: $color-danger;
+  border-color: $color-danger;
+}
+
+.optionCorrect .optionKey,
+.optionCorrect .optionText,
+.optionWrong .optionKey,
+.optionWrong .optionText {
+  color: #ffffff;
+}
+
+.optionCorrect .optionKey,
+.optionWrong .optionKey {
+  border-color: rgba(255, 255, 255, 0.72);
+}
+
+.answerPanel {
+  margin-top: 22px;
+  padding: 20px 0;
+}
+
+.answerCol {
+  flex: 1;
+  text-align: center;
+  border-right: 1px solid $color-divider;
+}
+
+.answerCol:last-child {
+  border-right: none;
+}
+
+.answerLabel {
+  display: block;
+  color: $color-text-muted;
+  font-size: $font-hint;
+}
+
+.answerValue,
+.correctColor,
+.wrongColor {
+  display: block;
+  margin-top: 10px;
+  font-size: $font-heading;
+  font-weight: 800;
+}
+
+.answerValue {
+  color: $color-text-primary;
+}
+
+.correctColor {
+  color: $color-primary;
+}
+
+.wrongColor {
+  color: $color-danger;
+}
+
+.reviewCard {
+  margin-top: 22px;
+  padding: 22px 20px 28px;
+}
+
+.reviewTabs {
+  gap: 12px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.reviewTab {
+  flex-shrink: 0;
+  padding: 10px 18px;
+  border-radius: $radius-sm;
+  background: $color-bg-subtle;
+}
+
+.reviewTabActive {
+  background: $color-primary-soft;
+}
+
+.reviewTabText {
+  color: $color-text-muted;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.reviewTabActive .reviewTabText {
+  color: $color-primary-dark;
+}
+
+.reviewBlock {
+  margin-top: 22px;
+}
+
+.reviewBlockTitle {
+  display: block;
+  color: $color-text-regular;
+  font-size: $font-body;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.reviewBody {
+  display: block;
+  margin-top: 22px;
+  color: #425966;
+  font-size: $font-body;
+  line-height: 1.8;
+}
+
+.bottomBar {
+  position: fixed;
+  left: 24px;
+  right: 24px;
+  bottom: 26px;
+  gap: 18px;
+  padding: 12px 0;
+  background: rgba(244, 248, 248, 0.94);
+}
+
+.submitButton,
+.nextButton,
+.secondaryButton,
+.secondaryButtonDisabled {
+  height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-lg;
+  font-size: $font-title;
+  font-weight: 800;
+}
+
+.submitButton,
+.nextButton {
+  flex: 1;
+  background: $color-primary;
+  color: #ffffff;
+  box-shadow: $shadow-primary;
+}
+
+.secondaryButton,
+.secondaryButtonDisabled {
+  flex: 0 0 278px;
+  border: 1px solid $color-border;
+  background: #ffffff;
+  color: #38515f;
+}
+
+.secondaryButtonDisabled {
+  color: $color-text-placeholder;
+}
+
+.option:active,
+.submitButton:active,
+.nextButton:active,
+.secondaryButton:active,
+.reviewTab:active {
+  opacity: 0.72;
+}
+
+.lockCard {
+  margin-top: 60px;
+  padding: 48px 36px 42px;
+  border-radius: $radius-lg;
+  background: #ffffff;
+  box-shadow: $shadow-float;
+  text-align: center;
+}
+
+.lockBadge {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-lg;
+  background: $color-danger-soft;
+  border: 2px solid rgba(229, 90, 60, 0.24);
+}
+
+.lockBadgeText {
+  color: #c0432a;
+  font-size: $font-body;
+  font-weight: 800;
+  letter-spacing: 3px;
+}
+
+.lockTitle {
+  display: block;
+  color: $color-text-primary;
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.lockDesc {
+  display: block;
+  margin-top: 18px;
+  color: $color-text-muted;
+  font-size: 25px;
+  line-height: 1.7;
+}
+
+.lockButton {
+  height: 88px;
+  margin-top: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-lg;
+  background: $color-primary;
+  box-shadow: $shadow-primary;
+}
+
+.lockButton:active {
+  opacity: 0.85;
+}
+
+.lockButtonText {
+  color: #ffffff;
+  font-size: $font-title;
+  font-weight: 800;
+}
