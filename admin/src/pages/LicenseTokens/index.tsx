@@ -1,10 +1,10 @@
-import { CopyOutlined, ReloadOutlined } from '@ant-design/icons'
+import { CopyOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import { ProColumns, ProTable, StatisticCard } from '@ant-design/pro-components'
 import { Alert, Button, Col, Empty, Input, Popconfirm, Row, Select, Space, Tag, Typography, message } from 'antd'
 import { useMemo, useRef, useState } from 'react'
 import type { ActionType } from '@ant-design/pro-components'
 import { SubjectAwarePageContainer } from '@/components/SubjectAwarePageContainer'
-import { deleteStudentLicenseToken, disableStudentLicenseToken, extendStudentLicenseToken, queryAdminLicenseTokens } from '@/services/adminNursing'
+import { deleteStudentLicenseToken, disableStudentLicenseToken, extendStudentLicenseToken, issueUnboundLicenseToken, queryAdminLicenseTokens } from '@/services/adminNursing'
 import type { AdminLicenseTokenRow } from '@/types/content'
 
 function formatDate(value?: string | null, fallback = '-') {
@@ -143,7 +143,7 @@ export default function LicenseTokensPage() {
         type="info"
         style={{ marginBottom: 12 }}
         message="发码记录以后端为准"
-        description="同一微信账号只保留一个有效授权码；误点生成的历史码会保留台账记录，但会被收口为禁用状态。长期未使用、已禁用或已过期且不再关联账号授权的码可删除清理。"
+        description="推荐先生成未绑定码，学生首次在小程序激活时绑定真实微信 openId；给指定用户发码只用于已登录账号的定向赋权。长期未使用、已禁用或已过期且不再关联账号授权的码可删除清理。"
       />
       <ProTable<AdminLicenseTokenRow>
         actionRef={actionRef}
@@ -166,6 +166,23 @@ export default function LicenseTokensPage() {
         locale={{ emptyText: <Empty description="暂无授权码记录" /> }}
         headerTitle="授权码明细"
         toolBarRender={() => [
+          <Button
+            key="issue-unused"
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={async () => {
+              try {
+                const result = await issueUnboundLicenseToken()
+                message.success(`已生成未绑定码：${result.licenseToken.code}`)
+                actionRef.current?.reload()
+              } catch (error) {
+                console.warn('issue unbound license token failed', error)
+                message.error(getErrorMessage(error, '未绑定授权码生成失败'))
+              }
+            }}
+          >
+            生成未绑定码
+          </Button>,
           <Input
             key="keyword"
             allowClear

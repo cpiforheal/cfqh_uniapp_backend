@@ -1,5 +1,5 @@
 import { adminFetch } from './adminApi'
-import type { AdminAnalytics, AdminAnalyticsStudentRow, AdminLicenseTokenRow, AdminVisibility, VideoAsset } from '@/types/content'
+import type { AdminAnalytics, AdminAnalyticsStudentRow, AdminLicenseTokenRow, AdminLoginUserRow, AdminVisibility, VideoAsset } from '@/types/content'
 
 export function queryAdminAnalytics() {
   return adminFetch<AdminAnalytics>('/admin/analytics')
@@ -29,6 +29,11 @@ export function queryAdminStudents(keyword?: string) {
   return adminFetch<Array<AdminAnalyticsStudentRow & { authorization?: unknown }>>(`/admin/students${query}`)
 }
 
+export function queryAdminLoginUsers(keyword?: string) {
+  const query = keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''
+  return adminFetch<AdminLoginUserRow[]>(`/admin/login-users${query}`)
+}
+
 export function queryAdminLicenseTokens(params: { keyword?: string; status?: string } = {}) {
   const query = new URLSearchParams()
   if (params.keyword) query.set('keyword', params.keyword)
@@ -38,7 +43,17 @@ export function queryAdminLicenseTokens(params: { keyword?: string; status?: str
 }
 
 export function issueStudentLicenseToken(payload: { openId: string; expiresDays?: number }) {
-  return adminFetch<{ userId: string; openId: string; reused?: boolean; licenseToken: { id: string; code: string; expiresAt?: string | null } }>(
+  return adminFetch<{ userId: string | null; openId: string | null; reused?: boolean; unbound?: boolean; licenseToken: { id: string; code: string; expiresAt?: string | null } }>(
+    '/admin/license-tokens/issue',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function issueUnboundLicenseToken(payload: { expiresDays?: number } = {}) {
+  return adminFetch<{ userId: null; openId: null; unbound: boolean; licenseToken: { id: string; code: string; expiresAt?: string | null } }>(
     '/admin/license-tokens/issue',
     {
       method: 'POST',

@@ -198,6 +198,7 @@ export interface QuestionBankOverview {
 export interface ProfileOverview {
   nickname: string
   avatarText: string
+  avatarUrl?: string
   authorization: AuthorizationInfo
   practiceCount: number
   mistakeCount: number

@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import type { Request } from 'express'
-import { requireLoginOpenId } from '../common/current-user'
+import { requireLoginOpenId, resolveTrustedOpenId } from '../common/current-user'
 import { PrismaService } from '../prisma/prisma.service'
 import { WechatLoginDto } from './dto/wechat-login.dto'
 
@@ -35,17 +35,80 @@ export class AuthService {
   }
 
   private async resolveLoginOpenId(dto: WechatLoginDto, request: Request) {
-    if (dto.code) return this.exchangeWechatCode(dto.code)
+    if (dto.code) {
+      try {
+        return await this.exchangeWechatCode(dto.code)
+      } catch (error) {
+        const trustedOpenId = resolveTrustedOpenId(request, this.configService)
+        if (trustedOpenId) return trustedOpenId
+        throw error
+      }
+    }
     return requireLoginOpenId(request, this.configService)
+  }
+
+  private firstHeader(value: string | string[] | undefined) {
+    return Array.isArray(value) ? value[0] : value
+  }
+
+  private cleanText(value?: string, fallback?: string) {
+    const trimmed = String(value || '').trim()
+    return trimmed || fallback
   }
 
   async wechatLogin(dto: WechatLoginDto, request: Request) {
     const openId = await this.resolveLoginOpenId(dto, request)
+    const nickname = this.cleanText(dto.nickname)
+    const avatarUrl = this.cleanText(dto.avatarUrl)
+    const clientEnv = this.cleanText(dto.clientEnv)
+    const platform = this.cleanText(dto.platform)
+    const device = this.cleanText(dto.device)
+    const sdkVersion = this.cleanText(dto.sdkVersion)
+    const appVersion = this.cleanText(dto.appVersion)
+    const source = this.cleanText(dto.source, 'miniapp')
+    const ip = this.firstHeader(request.headers['x-forwarded-for']) || request.ip
+    const userAgent = this.firstHeader(request.headers['user-agent'])
+
     const user = await this.prisma.user.upsert({
       where: { openId },
-      update: { nickname: dto.nickname, avatarUrl: dto.avatarUrl },
-      create: { openId, nickname: dto.nickname, avatarUrl: dto.avatarUrl },
+      update: {
+        nickname,
+        avatarUrl,
+        loginCount: { increment: 1 },
+        lastLoginAt: new Date(),
+        lastClientEnv: clientEnv,
+        lastPlatform: platform,
+        lastDevice: device,
+        lastSdkVersion: sdkVersion,
+      },
+      create: {
+        openId,
+        nickname: nickname || '微信用户',
+        avatarUrl,
+        loginCount: 1,
+        lastLoginAt: new Date(),
+        lastClientEnv: clientEnv,
+        lastPlatform: platform,
+        lastDevice: device,
+        lastSdkVersion: sdkVersion,
+      },
       include: { authorization: { include: { licenseToken: true } } },
+    })
+    const logNickname = nickname || user.nickname || '微信用户'
+    await this.prisma.userLoginLog.create({
+      data: {
+        userId: user.id,
+        openId,
+        nickname: logNickname,
+        clientEnv,
+        platform,
+        device,
+        sdkVersion,
+        appVersion,
+        source,
+        ip,
+        userAgent,
+      },
     })
     return user
   }

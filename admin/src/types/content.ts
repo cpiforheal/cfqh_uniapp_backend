@@ -159,11 +159,18 @@ export interface AdminAnalyticsStudentRow {
   userId: string
   openId: string
   nickname: string
+  avatarUrl?: string | null
   practiceCount: number
   correctRate: number
   mistakeCount: number
   practiceDays: number
   recentPracticeDays: number
+  loginCount?: number
+  lastLoginAt?: string | null
+  lastClientEnv?: string | null
+  lastPlatform?: string | null
+  lastDevice?: string | null
+  lastSdkVersion?: string | null
   activatedAt?: string | null
   expiresAt?: string | null
   licenseCode?: string | null
@@ -192,6 +199,43 @@ export interface AdminLicenseTokenRow {
     nickname?: string | null
     avatarUrl?: string | null
   } | null
+}
+
+export interface AdminLoginUserRow {
+  userId: string
+  openId: string
+  nickname: string
+  avatarUrl?: string | null
+  loginCount: number
+  firstLoginAt: string
+  lastLoginAt?: string | null
+  lastClientEnv?: string | null
+  lastPlatform?: string | null
+  lastDevice?: string | null
+  lastSdkVersion?: string | null
+  authorization?: {
+    activatedAt?: string | null
+    expiresAt?: string | null
+    licenseToken?: {
+      id: string
+      code: string
+      status: 'unused' | 'bound' | 'disabled' | 'expired'
+      boundAt?: string | null
+      expiresAt?: string | null
+    } | null
+  } | null
+  recentLogs: Array<{
+    id: string
+    clientEnv?: string | null
+    platform?: string | null
+    device?: string | null
+    sdkVersion?: string | null
+    appVersion?: string | null
+    source?: string | null
+    ip?: string | null
+    userAgent?: string | null
+    createdAt: string
+  }>
 }
 
 export interface AdminAnalytics {

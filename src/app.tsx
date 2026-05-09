@@ -18,8 +18,12 @@ const queryClient = new QueryClient({
 
 function App({ children }: PropsWithChildren) {
   useEffect(() => {
-    if (IS_WEAPP && Taro.cloud) {
-      Taro.cloud.init({ traceUser: true })
+    try {
+      if (IS_WEAPP && Taro.cloud) {
+        Taro.cloud.init({ traceUser: true })
+      }
+    } catch (error) {
+      console.warn('cloud init failed', error)
     }
 
     const store = useAuthStore.getState()

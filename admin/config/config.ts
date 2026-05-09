@@ -125,6 +125,12 @@ export default defineConfig({
       component: './Students',
     },
     {
+      path: '/nursing/login-users',
+      name: '小程序登录台账',
+      icon: 'AuditOutlined',
+      component: './LoginUsers',
+    },
+    {
       path: '/nursing/license-tokens',
       name: '授权码台账',
       icon: 'SafetyCertificateOutlined',

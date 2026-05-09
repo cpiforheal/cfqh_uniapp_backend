@@ -1,7 +1,7 @@
 import { Input, Text, View } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import { useState } from 'react'
-import { activateLicense } from '@/services/nursing'
+import { activateLicense, loginWithWechatProfile } from '@/services/nursing'
 import { useAuthStore } from '@/stores/auth'
 import styles from './index.module.scss'
 
@@ -28,6 +28,8 @@ function formatDisplay(value: string) {
 export default function ActivatePage() {
   const [code, setCode] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [loginSubmitting, setLoginSubmitting] = useState(false)
+  const [loginSynced, setLoginSynced] = useState(false)
   const [errorText, setErrorText] = useState('')
   const setAuthorized = useAuthStore((state) => state.setAuthorized)
 
@@ -99,6 +101,21 @@ export default function ActivatePage() {
     }, 600)
   }
 
+  async function handleWechatProfileLogin() {
+    if (loginSubmitting) return
+    setLoginSubmitting(true)
+    setErrorText('')
+    try {
+      await loginWithWechatProfile()
+      setLoginSynced(true)
+      Taro.showToast({ title: '已同步微信账号', icon: 'success' })
+    } catch {
+      Taro.showToast({ title: '未完成授权，可稍后再试', icon: 'none' })
+    } finally {
+      setLoginSubmitting(false)
+    }
+  }
+
   const canSubmit = CODE_PATTERN.test(code) && !submitting
   const displayValue = formatDisplay(code)
   const targetLength = code.startsWith('NUR-') ? 12 : 8
@@ -114,6 +131,16 @@ export default function ActivatePage() {
       </View>
 
       <View className={styles.formCard}>
+        <View className={styles.loginCard}>
+          <View className={styles.loginTextBlock}>
+            <Text className={styles.loginTitle}>{loginSynced ? '微信账号已同步' : '先同步微信账号'}</Text>
+            <Text className={styles.loginDesc}>激活会绑定当前微信账号，后台台账可据此核验发码与登录记录。</Text>
+          </View>
+          <View className={`${styles.loginBtn} ${loginSubmitting || loginSynced ? styles.loginBtnMuted : ''}`} onTap={handleWechatProfileLogin}>
+            <Text className={styles.loginBtnText}>{loginSubmitting ? '同步中' : loginSynced ? '重新同步' : '微信授权'}</Text>
+          </View>
+        </View>
+
         <View className={styles.formHeader}>
           <Text className={styles.label}>学习通行码</Text>
           <View className={styles.formActions}>

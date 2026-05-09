@@ -1,8 +1,8 @@
-import { Input, Text, View } from '@tarojs/components'
+import { Image, Input, Text, View } from '@tarojs/components'
 import Taro, { useDidShow, usePullDownRefresh } from '@tarojs/taro'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { activateLicense, getProfileOverview } from '@/services/nursing'
+import { activateLicense, getProfileOverview, loginWithWechatProfile } from '@/services/nursing'
 import { isAuthorized } from '@/services/nursing'
 import { useAuthStore } from '@/stores/auth'
 import styles from './index.module.scss'
@@ -53,6 +53,7 @@ export default function ProfilePage() {
   const [newCode, setNewCode] = useState('')
   const [replaceSubmitting, setReplaceSubmitting] = useState(false)
   const [replaceError, setReplaceError] = useState('')
+  const [loginSubmitting, setLoginSubmitting] = useState(false)
 
   const { data, refetch, isRefetching } = useQuery({
     queryKey: ['profileOverview'],
@@ -137,11 +138,29 @@ export default function ProfilePage() {
     Taro.switchTab({ url: '/pages/practice/index' })
   }
 
+  async function handleWechatProfileLogin() {
+    if (loginSubmitting) return
+    setLoginSubmitting(true)
+    try {
+      await loginWithWechatProfile()
+      Taro.showToast({ title: '已同步微信账号', icon: 'success' })
+      refetch()
+    } catch {
+      Taro.showToast({ title: '未完成授权，可稍后再试', icon: 'none' })
+    } finally {
+      setLoginSubmitting(false)
+    }
+  }
+
   return (
     <View className={styles.page}>
       <View className={styles.topBar}>
         <View className={styles.avatar}>
-          <Text className={styles.avatarText}>{data?.avatarText || '护'}</Text>
+          {data?.avatarUrl ? (
+            <Image className={styles.avatarImage} src={data.avatarUrl} mode="aspectFill" />
+          ) : (
+            <Text className={styles.avatarText}>{data?.avatarText || '护'}</Text>
+          )}
         </View>
         <View className={styles.userInfo}>
           <Text className={styles.nickname}>{data?.nickname || '医护同学'}</Text>
@@ -151,6 +170,18 @@ export default function ProfilePage() {
           </View>
         </View>
       </View>
+
+      {!authorized && (
+        <View className={styles.loginCard}>
+          <View className={styles.loginTextBlock}>
+            <Text className={styles.loginTitle}>同步当前微信账号</Text>
+            <Text className={styles.loginDesc}>授权头像昵称后，后台台账可识别你的真机 openId，发码与激活会更稳定。</Text>
+          </View>
+          <View className={`${styles.loginBtn} ${loginSubmitting ? styles.loginBtnDisabled : ''}`} onTap={handleWechatProfileLogin}>
+            <Text className={styles.loginBtnText}>{loginSubmitting ? '同步中' : '微信授权'}</Text>
+          </View>
+        </View>
+      )}
 
       <View className={styles.licenseCard}>
         <View className={styles.licenseHeader}>

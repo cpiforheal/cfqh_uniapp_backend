@@ -58,6 +58,14 @@ export class LicenseService {
         boundAt: new Date(),
       },
     })
+    await this.prisma.licenseToken.updateMany({
+      where: {
+        boundOpenId: openId,
+        status: LicenseStatus.bound,
+        id: { not: token.id },
+      },
+      data: { status: LicenseStatus.disabled },
+    })
 
     return this.status(openId)
   }

@@ -130,6 +130,12 @@ export class NursingController {
   }
 
   @UseGuards(AdminGuard)
+  @Get('admin/login-users')
+  adminLoginUsers(@Query('keyword') keyword?: string) {
+    return this.nursingService.adminLoginUsers(keyword)
+  }
+
+  @UseGuards(AdminGuard)
   @Get('admin/license-tokens')
   adminLicenseTokens(@Query('keyword') keyword?: string, @Query('status') status?: string) {
     return this.nursingService.adminLicenseTokens(keyword, status)

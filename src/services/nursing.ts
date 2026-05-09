@@ -163,6 +163,12 @@ type RequestOptions = {
   authRequired?: boolean
 }
 
+type LoginResponse = {
+  openId?: string
+  nickname?: string
+  avatarUrl?: string
+}
+
 function getOpenId() {
   return Taro.getStorageSync<string>(OPEN_ID_STORAGE_KEY) || MINIAPP_ENV.devOpenId
 }
@@ -171,9 +177,43 @@ function getTokenCode() {
   return Taro.getStorageSync<string>(TOKEN_STORAGE_KEY) || MINIAPP_ENV.devTokenCode
 }
 
+function getClientLoginPayload() {
+  let systemInfo = {} as Record<string, unknown>
+  try {
+    systemInfo = Taro.getSystemInfoSync?.() as unknown as Record<string, unknown>
+  } catch {
+    systemInfo = {}
+  }
+
+  return {
+    clientEnv: IS_WEAPP ? 'weapp' : MINIAPP_ENV.platform,
+    platform: String(systemInfo.platform || ''),
+    device: [systemInfo.brand, systemInfo.model].filter(Boolean).join(' '),
+    sdkVersion: String(systemInfo.SDKVersion || ''),
+    appVersion: String(systemInfo.version || ''),
+    source: 'miniapp',
+  }
+}
+
+async function getWechatLoginCode() {
+  if (!IS_WEAPP || !Taro.login) return ''
+  try {
+    const result = await Taro.login()
+    return result.code || ''
+  } catch (error) {
+    console.warn('wx login failed', error)
+    return ''
+  }
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T | null> {
   try {
     if (MINIAPP_ENV.useCloudGateway && IS_WEAPP) {
+      if (!Taro.cloud?.callFunction) {
+        console.warn(`cloud gateway unavailable: ${path}`)
+        return null
+      }
+
       const response = await Taro.cloud.callFunction({
         name: MINIAPP_ENV.cloudGatewayName,
         data: {
@@ -218,17 +258,42 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 }
 
-async function ensureLogin() {
+async function loginMiniappUser(profile?: { nickname?: string; avatarUrl?: string }) {
   const openId = getOpenId()
-  await request('/auth/wechat-login', {
+  const code = await getWechatLoginCode()
+  const result = await request<LoginResponse>('/auth/wechat-login', {
     method: 'POST',
     data: {
+      ...(code ? { code } : {}),
       ...(openId ? { openId } : {}),
-      nickname: '医护同学',
-      avatarUrl: '',
+      ...(profile?.nickname ? { nickname: profile.nickname } : {}),
+      ...(profile?.avatarUrl ? { avatarUrl: profile.avatarUrl } : {}),
+      ...getClientLoginPayload(),
     },
   })
-  return openId
+  const resolvedOpenId = result?.openId || openId
+  if (resolvedOpenId) Taro.setStorageSync(OPEN_ID_STORAGE_KEY, resolvedOpenId)
+  return resolvedOpenId
+}
+
+async function ensureLogin() {
+  return loginMiniappUser()
+}
+
+export async function loginWithWechatProfile() {
+  const getUserProfile = (Taro as unknown as { getUserProfile?: (options: { desc: string }) => Promise<{ userInfo?: { nickName?: string; avatarUrl?: string } }> }).getUserProfile
+  if (!getUserProfile) {
+    await loginMiniappUser()
+    return { ok: true, nickname: '微信用户', avatarUrl: '' }
+  }
+
+  const result = await getUserProfile({ desc: '用于展示学习账号头像昵称与同步登录台账' })
+  const userInfo = result.userInfo || {}
+  await loginMiniappUser({
+    nickname: userInfo.nickName || '微信用户',
+    avatarUrl: userInfo.avatarUrl || '',
+  })
+  return { ok: true, nickname: userInfo.nickName || '微信用户', avatarUrl: userInfo.avatarUrl || '' }
 }
 
 function difficultyText(difficulty?: string) {
@@ -454,7 +519,7 @@ export async function getProfileOverview(): Promise<ProfileOverview> {
   }
 
   const [me, mistakes] = await Promise.all([
-    request<{ nickname?: string; authorization?: { licenseToken?: { code: string }; expiresAt?: string } }>('/auth/me'),
+    request<{ nickname?: string; avatarUrl?: string; authorization?: { licenseToken?: { code: string }; expiresAt?: string } }>('/auth/me'),
     request<Array<{ id: string }>>('/mistakes'),
   ])
 
@@ -463,6 +528,7 @@ export async function getProfileOverview(): Promise<ProfileOverview> {
   return {
     ...profileMock,
     nickname: me.nickname || '医护同学',
+    avatarUrl: me.avatarUrl,
     authorization: {
       ...authorization,
       tokenCode: me.authorization?.licenseToken?.code || getTokenCode(),

@@ -22,7 +22,7 @@
 
 - `API_BASE`：后端 API 地址，例如 `https://api.example.com/api`。
 - `GATEWAY_SECRET`：与后端 `GATEWAY_SECRET` 保持一致。
-- `DEV_OPEN_ID`：仅本地或测试云环境兜底使用。
+- `ALLOW_DEV_OPEN_ID=true` + `DEV_OPEN_ID`：仅本地或测试云环境兜底使用；正式/预发布环境不要配置或保持关闭。
 
 后端环境变量见 [`api/.env.example`](api/.env.example)，后台环境变量见 [`admin/.env.example`](admin/.env.example)。
 

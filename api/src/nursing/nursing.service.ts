@@ -124,6 +124,35 @@ export class NursingService {
     })
   }
 
+  private async createLicenseToken(data: {
+    status: LicenseStatus
+    expiresAt?: Date | null
+    boundUserId?: string
+    boundOpenId?: string
+    boundAt?: Date
+  }) {
+    for (let i = 0; i < 5; i += 1) {
+      try {
+        return await this.prisma.licenseToken.create({
+          data: {
+            code: this.generateLicenseCode(),
+            status: data.status,
+            subjectScope: SubjectCode.nursing,
+            resourceScope: 'all',
+            maxBindCount: 1,
+            boundUserId: data.boundUserId,
+            boundOpenId: data.boundOpenId,
+            boundAt: data.boundAt,
+            expiresAt: data.expiresAt,
+          },
+        })
+      } catch {
+        // retry on rare license-code collision
+      }
+    }
+    throw new BadRequestException('授权码生成失败，请重试')
+  }
+
   async catalog(openId?: string) {
     const [questions, videos, user] = await Promise.all([
       this.prisma.question.findMany({
@@ -368,7 +397,20 @@ export class NursingService {
 
   async adminAnalytics() {
     const [users, authorizations, records, mistakes, questions] = await Promise.all([
-      this.prisma.user.findMany({ select: { id: true, openId: true, nickname: true, createdAt: true } }),
+      this.prisma.user.findMany({
+        select: {
+          id: true,
+          openId: true,
+          nickname: true,
+          createdAt: true,
+          loginCount: true,
+          lastLoginAt: true,
+          lastClientEnv: true,
+          lastPlatform: true,
+          lastDevice: true,
+          lastSdkVersion: true,
+        },
+      }),
       this.prisma.userAuthorization.findMany({
         select: {
           userId: true,
@@ -444,6 +486,12 @@ export class NursingService {
         mistakeCount: userMistakes.reduce((sum, mistake) => sum + mistake.wrongCount, 0),
         practiceDays,
         recentPracticeDays: recentDays,
+        loginCount: user.loginCount,
+        lastLoginAt: user.lastLoginAt,
+        lastClientEnv: user.lastClientEnv,
+        lastPlatform: user.lastPlatform,
+        lastDevice: user.lastDevice,
+        lastSdkVersion: user.lastSdkVersion,
         activatedAt: authorization?.activatedAt ?? null,
         expiresAt: authorization?.expiresAt ?? null,
         licenseCode: authorization?.licenseToken?.code ?? null,
@@ -567,7 +615,7 @@ export class NursingService {
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ lastLoginAt: 'desc' }, { createdAt: 'desc' }],
       take: 100,
     })
 
@@ -575,6 +623,13 @@ export class NursingService {
       userId: user.id,
       openId: user.openId,
       nickname: user.nickname || '微信用户',
+      avatarUrl: user.avatarUrl,
+      loginCount: user.loginCount,
+      lastLoginAt: user.lastLoginAt,
+      lastClientEnv: user.lastClientEnv,
+      lastPlatform: user.lastPlatform,
+      lastDevice: user.lastDevice,
+      lastSdkVersion: user.lastSdkVersion,
       createdAt: user.createdAt,
       authorization: user.authorization
         ? {
@@ -592,6 +647,73 @@ export class NursingService {
               : null,
           }
         : null,
+    }))
+  }
+
+  async adminLoginUsers(keyword?: string) {
+    const normalizedKeyword = String(keyword || '').trim()
+    const users = await this.prisma.user.findMany({
+      where: normalizedKeyword
+        ? {
+            OR: [
+              { openId: { contains: normalizedKeyword } },
+              { nickname: { contains: normalizedKeyword } },
+              { lastDevice: { contains: normalizedKeyword } },
+            ],
+          }
+        : undefined,
+      include: {
+        authorization: {
+          include: { licenseToken: true },
+        },
+        loginLogs: {
+          orderBy: { createdAt: 'desc' },
+          take: 3,
+        },
+      },
+      orderBy: [{ lastLoginAt: 'desc' }, { createdAt: 'desc' }],
+      take: 300,
+    })
+
+    return users.map((user) => ({
+      userId: user.id,
+      openId: user.openId,
+      nickname: user.nickname || '微信用户',
+      avatarUrl: user.avatarUrl,
+      loginCount: user.loginCount,
+      firstLoginAt: user.createdAt,
+      lastLoginAt: user.lastLoginAt,
+      lastClientEnv: user.lastClientEnv,
+      lastPlatform: user.lastPlatform,
+      lastDevice: user.lastDevice,
+      lastSdkVersion: user.lastSdkVersion,
+      authorization: user.authorization
+        ? {
+            activatedAt: user.authorization.activatedAt,
+            expiresAt: user.authorization.expiresAt,
+            licenseToken: user.authorization.licenseToken
+              ? {
+                  id: user.authorization.licenseToken.id,
+                  code: user.authorization.licenseToken.code,
+                  status: this.getEffectiveLicenseStatus(user.authorization.licenseToken),
+                  boundAt: user.authorization.licenseToken.boundAt,
+                  expiresAt: user.authorization.licenseToken.expiresAt,
+                }
+              : null,
+          }
+        : null,
+      recentLogs: user.loginLogs.map((log) => ({
+        id: log.id,
+        clientEnv: log.clientEnv,
+        platform: log.platform,
+        device: log.device,
+        sdkVersion: log.sdkVersion,
+        appVersion: log.appVersion,
+        source: log.source,
+        ip: log.ip,
+        userAgent: log.userAgent,
+        createdAt: log.createdAt,
+      })),
     }))
   }
 
@@ -653,7 +775,21 @@ export class NursingService {
 
   async issueLicenseToken(dto: Record<string, unknown>) {
     const openId = typeof dto.openId === 'string' ? dto.openId.trim() : ''
-    if (!openId) throw new BadRequestException('openId 不能为空')
+    const expiresDays = typeof dto.expiresDays === 'number' ? dto.expiresDays : Number(dto.expiresDays || 0)
+    const expiresAt = expiresDays > 0 ? new Date(Date.now() + expiresDays * 24 * 60 * 60 * 1000) : null
+
+    if (!openId) {
+      const created = await this.createLicenseToken({
+        status: LicenseStatus.unused,
+        expiresAt,
+      })
+      return {
+        userId: null,
+        openId: null,
+        licenseToken: created,
+        unbound: true,
+      }
+    }
 
     const user = await this.prisma.user.findUnique({
       where: { openId },
@@ -661,8 +797,6 @@ export class NursingService {
     })
     if (!user) throw new NotFoundException('该微信用户不存在，请先登录小程序')
 
-    const expiresDays = typeof dto.expiresDays === 'number' ? dto.expiresDays : Number(dto.expiresDays || 0)
-    const expiresAt = expiresDays > 0 ? new Date(Date.now() + expiresDays * 24 * 60 * 60 * 1000) : null
     const currentToken = user.authorization?.licenseToken
 
     if (currentToken && this.isEffectiveBoundLicense(currentToken, user.openId)) {
@@ -675,29 +809,13 @@ export class NursingService {
       }
     }
 
-    let created = null as Awaited<ReturnType<typeof this.prisma.licenseToken.create>> | null
-    for (let i = 0; i < 5; i += 1) {
-      try {
-        created = await this.prisma.licenseToken.create({
-          data: {
-            code: this.generateLicenseCode(),
-            status: LicenseStatus.bound,
-            subjectScope: SubjectCode.nursing,
-            resourceScope: 'all',
-            maxBindCount: 1,
-            boundUserId: user.id,
-            boundOpenId: user.openId,
-            boundAt: new Date(),
-            expiresAt,
-          },
-        })
-        break
-      } catch {
-        created = null
-      }
-    }
-
-    if (!created) throw new BadRequestException('授权码生成失败，请重试')
+    const created = await this.createLicenseToken({
+      status: LicenseStatus.bound,
+      boundUserId: user.id,
+      boundOpenId: user.openId,
+      boundAt: new Date(),
+      expiresAt,
+    })
     await this.disableDuplicateBoundTokens(user.openId, created.id)
 
     await this.prisma.userAuthorization.upsert({

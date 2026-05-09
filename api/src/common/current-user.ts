@@ -31,7 +31,7 @@ export function resolveTrustedOpenId(request: RequestLike, configService: Config
     return openId
   }
 
-  if (openId && !isProduction(configService)) {
+  if (openId && isDevOpenIdAllowed(configService)) {
     request.currentOpenId = openId
     return openId
   }

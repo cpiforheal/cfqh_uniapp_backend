@@ -71,7 +71,7 @@ function legacyActionToProxy(event) {
 
 exports.main = async (event) => {
   const wxContext = cloud.getWXContext()
-  const openId = wxContext.OPENID || process.env.DEV_OPEN_ID || ''
+  const openId = wxContext.OPENID || (process.env.ALLOW_DEV_OPEN_ID === 'true' ? process.env.DEV_OPEN_ID : '') || ''
   const proxyEvent = event?.path ? event : legacyActionToProxy(event)
 
   if (!proxyEvent) {

@@ -48,6 +48,60 @@
   box-shadow: $shadow-float;
 }
 
+.loginCard {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 30px;
+  padding: 22px;
+  border-radius: $radius-md;
+  background: $color-primary-soft;
+  border: 1px solid $color-border;
+}
+
+.loginTextBlock {
+  flex: 1;
+}
+
+.loginTitle {
+  display: block;
+  color: $color-text-primary;
+  font-size: $font-body;
+  font-weight: 800;
+}
+
+.loginDesc {
+  display: block;
+  margin-top: 8px;
+  color: $color-text-muted;
+  font-size: $font-hint;
+  line-height: 1.5;
+}
+
+.loginBtn {
+  height: 60px;
+  padding: 0 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-pill;
+  background: $color-primary;
+}
+
+.loginBtn:active {
+  opacity: 0.82;
+}
+
+.loginBtnMuted {
+  background: $color-primary-dark;
+}
+
+.loginBtnText {
+  color: #ffffff;
+  font-size: $font-hint;
+  font-weight: 800;
+}
+
 .formHeader,
 .formActions {
   display: flex;
