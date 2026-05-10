@@ -97,6 +97,24 @@ export class NursingService {
     return this.prisma.user.findUnique({ where: { openId } })
   }
 
+  private async getAuthorizedUserByOpenId(openId?: string) {
+    if (!openId) return null
+    const user = await this.prisma.user.findUnique({
+      where: { openId },
+      include: { authorization: { include: { licenseToken: true } } },
+    })
+    if (!user?.authorization?.licenseToken) return null
+
+    const now = new Date()
+    const authorization = user.authorization
+    const token = authorization.licenseToken
+    const expired = Boolean(authorization.expiresAt && authorization.expiresAt <= now) || Boolean(token.expiresAt && token.expiresAt <= now)
+    const disabled = token.status === LicenseStatus.disabled
+    const subjectMatched = authorization.subjectScope === SubjectCode.nursing && token.subjectScope === SubjectCode.nursing
+    const boundToCurrentUser = !token.boundOpenId || token.boundOpenId === openId
+    return !expired && !disabled && subjectMatched && boundToCurrentUser ? user : null
+  }
+
   private generateLicenseCode() {
     const seed = Math.random().toString(36).slice(2, 10).toUpperCase()
     return `NUR-${seed}`
@@ -154,7 +172,26 @@ export class NursingService {
   }
 
   async catalog(openId?: string) {
-    const [questions, videos, user] = await Promise.all([
+    const authorizedUser = await this.getAuthorizedUserByOpenId(openId)
+    if (!authorizedUser) {
+      return NURSING_MODULES.map((module) => ({
+        moduleCode: module.moduleCode,
+        moduleName: module.moduleName,
+        chapter: module.moduleName,
+        chapterSort: module.sort,
+        subChapterCount: 1,
+        mockChapters: [module.mockChapter],
+        totalQuestions: 0,
+        totalVideos: 0,
+        completedQuestions: 0,
+        completionRate: 0,
+        difficultyLabel: '待解锁',
+        locked: true,
+        iconText: module.iconText,
+      }))
+    }
+
+    const [questions, videos, records] = await Promise.all([
       this.prisma.question.findMany({
         where: { subjectCode: SubjectCode.nursing, status: ContentStatus.published },
         select: { id: true, moduleCode: true, moduleName: true, chapter: true, chapterSort: true, difficulty: true },
@@ -164,15 +201,11 @@ export class NursingService {
         where: { subjectCode: SubjectCode.nursing, status: ContentStatus.published },
         select: { id: true, moduleCode: true },
       }),
-      this.getUserByOpenId(openId),
+      this.prisma.practiceRecord.findMany({
+        where: { userId: authorizedUser.id },
+        select: { questionId: true },
+      }),
     ])
-
-    const records = user
-      ? await this.prisma.practiceRecord.findMany({
-          where: { userId: user.id },
-          select: { questionId: true },
-        })
-      : []
     const completedQuestionIds = new Set(records.map((record) => record.questionId))
     return NURSING_MODULES.map((module) => {
       const moduleQuestions = questions.filter((question) => question.moduleCode === module.moduleCode)
@@ -197,7 +230,7 @@ export class NursingService {
           : Array.from(difficulties).some((difficulty) => difficulty === 'medium')
             ? '中等'
             : '基础',
-        locked: !user,
+        locked: false,
         iconText: module.iconText,
       }
     })

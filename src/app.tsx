@@ -37,9 +37,11 @@ function App({ children }: PropsWithChildren) {
           if (code) current.setAuthorized(code, result.authorization?.expiresAt)
           return
         }
-        if (current.status === 'authorized' && result?.reason === 'expired') {
+        if (current.status === 'authorized' && result && !result.authorized && result.reason !== 'request_failed') {
           current.logout()
-          Taro.reLaunch({ url: '/pages/activate/index' })
+          if (result.reason === 'expired') {
+            Taro.reLaunch({ url: '/pages/activate/index' })
+          }
         }
       })
       .catch(() => {

@@ -2,7 +2,8 @@ import { Text, View } from '@tarojs/components'
 import Taro, { useDidShow, usePullDownRefresh } from '@tarojs/taro'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect } from 'react'
-import { getLocalPracticeHomeOverview, getPracticeHomeOverview, isAuthorized } from '@/services/nursing'
+import { getLicenseStatus, getLocalPracticeHomeOverview, getPracticeHomeOverview, isAuthorized } from '@/services/nursing'
+import { useAuthStore } from '@/stores/auth'
 import type { PracticeQuestionSummary } from '@/types/study'
 import styles from './index.module.scss'
 
@@ -11,6 +12,11 @@ function isQuestion(question?: PracticeQuestionSummary): question is PracticeQue
 }
 
 export default function PracticePage() {
+  const setAuthorized = useAuthStore((state) => state.setAuthorized)
+  const { data: licenseStatus, isLoading: isLicenseLoading } = useQuery({
+    queryKey: ['licenseStatus'],
+    queryFn: getLicenseStatus,
+  })
   const { data, refetch, isRefetching, isError } = useQuery({
     queryKey: ['practiceHome'],
     queryFn: getPracticeHomeOverview,
@@ -20,6 +26,13 @@ export default function PracticePage() {
   useDidShow(() => {
     refetch()
   })
+
+  useEffect(() => {
+    if (!licenseStatus?.authorized) return
+    const tokenCode = licenseStatus.authorization?.licenseToken?.code
+    if (tokenCode) setAuthorized(tokenCode, licenseStatus.authorization?.expiresAt)
+    refetch()
+  }, [licenseStatus, refetch, setAuthorized])
 
   usePullDownRefresh(async () => {
     await refetch()
@@ -40,9 +53,25 @@ export default function PracticePage() {
     .filter((question, index, list) => list.findIndex((item) => item?.id === question?.id) === index)
     .slice(0, 5)
 
-  const authStatus = data.authorization?.status
-  const authorized = isAuthorized(data.authorization)
-  const expiresText = data.authorization?.expiresText
+  const remoteAuthorization = data.authorization
+  const licenseAuthorization = licenseStatus
+    ? { status: licenseStatus.authorized ? 'authorized' as const : 'unauthorized' as const, reason: licenseStatus.reason }
+    : null
+  const authorized = isAuthorized(remoteAuthorization) || isAuthorized(licenseAuthorization)
+  const checkingAuthorization = !authorized && (isLicenseLoading || isRefetching)
+  const displayAuthorization = isAuthorized(remoteAuthorization)
+    ? remoteAuthorization
+    : isAuthorized(licenseAuthorization)
+      ? {
+          ...remoteAuthorization,
+          status: 'authorized' as const,
+          tokenCode: licenseStatus?.authorization?.licenseToken?.code || remoteAuthorization?.tokenCode,
+          expiresText: licenseStatus?.authorization?.expiresAt ? `有效期至 ${String(licenseStatus.authorization.expiresAt).slice(0, 10)}` : remoteAuthorization?.expiresText,
+          resourceScopeText: remoteAuthorization?.resourceScopeText || '医护题库、解析、案例材料、公开讲解',
+        }
+      : remoteAuthorization
+  const authStatusText = displayAuthorization?.status
+  const expiresText = displayAuthorization?.expiresText
   const authDaysLeft = (() => {
     if (!expiresText) return null
     const match = expiresText.match(/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/)
@@ -52,8 +81,8 @@ export default function PracticePage() {
     today.setHours(0, 0, 0, 0)
     return Math.round((target - today.getTime()) / (1000 * 60 * 60 * 24))
   })()
-  const showAuthBanner = authStatus !== 'authorized' || (authDaysLeft != null && authDaysLeft <= 15)
-  const isExpired = authStatus !== 'authorized' || (authDaysLeft != null && authDaysLeft <= 0)
+  const showAuthBanner = authStatusText !== 'authorized' || (authDaysLeft != null && authDaysLeft <= 15)
+  const isExpired = authStatusText !== 'authorized' || (authDaysLeft != null && authDaysLeft <= 0)
 
   function goActivate() {
     Taro.navigateTo({ url: '/pages/activate/index' })
@@ -63,6 +92,10 @@ export default function PracticePage() {
     Taro.switchTab({ url: '/pages/profile/index' })
   }
 
+  function goQuestionBank() {
+    Taro.switchTab({ url: '/pages/question-bank/index' })
+  }
+
   function goQuestion(questionId?: string) {
     const targetId = questionId || data.dailyQuestion?.id
     if (!targetId) return
@@ -70,6 +103,17 @@ export default function PracticePage() {
   }
 
   const percent = progress?.percent || 0
+
+  if (checkingAuthorization) {
+    return (
+      <View className={styles.page}>
+        <View className={styles.lockInfoCard}>
+          <Text className={styles.lockInfoTitle}>正在确认授权</Text>
+          <Text className={styles.lockInfoText}>正在同步通行码状态和练习首页，请稍候。</Text>
+        </View>
+      </View>
+    )
+  }
 
   if (!authorized) {
     return (
@@ -108,10 +152,31 @@ export default function PracticePage() {
 
   return (
     <View className={styles.page}>
-      <View className={styles.header}>
-        <View>
-          <Text className={styles.pageTitle}>今日医护练习</Text>
-          <Text className={styles.pageSubtitle}>循序刷题 稳步提升</Text>
+      <View className={styles.hero}>
+        <Text className={styles.brandText}>专转本医护大类</Text>
+        <Text className={styles.title}>今日医护练习</Text>
+        <Text className={styles.desc}>围绕题库目录、每日推荐、错题复盘同步推进，当前账号的练习记录会自动归档。</Text>
+      </View>
+
+      <View className={styles.overviewGrid}>
+        <View className={styles.overviewCard}>
+          <Text className={styles.overviewValue}>{progress?.done || 0}</Text>
+          <Text className={styles.overviewLabel}>今日已练</Text>
+        </View>
+        <View className={styles.overviewCard}>
+          <Text className={styles.overviewValue}>{recommendedQuestions.length || 0}</Text>
+          <Text className={styles.overviewLabel}>推荐题</Text>
+        </View>
+        <View className={styles.overviewCard}>
+          <Text className={styles.overviewValue}>{data.recentMistakes?.length || 0}</Text>
+          <Text className={styles.overviewLabel}>近期错题</Text>
+        </View>
+      </View>
+
+      <View className={styles.accountPanel}>
+        <View className={styles.accountLeft}>
+          <Text className={styles.accountTitle}>账号学习状态</Text>
+          <Text className={styles.accountDesc}>{expiresText || '通行码已激活，题库与进度已同步'}</Text>
         </View>
         <View className={styles.streakPill}>
           <Text className={styles.streakNum}>{data.weeklyCompletedCount || 0}</Text>
@@ -183,7 +248,11 @@ export default function PracticePage() {
         </View>
       ) : (
         <View className={styles.emptyCard}>
-          <Text className={styles.emptyText}>{isError ? '题目加载失败，请下拉重试' : '暂无今日推荐题目'}</Text>
+          <Text className={styles.emptyTitle}>{isError ? '题目加载失败' : '今日推荐同步中'}</Text>
+          <Text className={styles.emptyText}>{isError ? '请下拉刷新，或稍后重新进入首页' : '可以先进入题库目录，按课程章节选择练习内容。'}</Text>
+          <View className={styles.emptyButton} onTap={goQuestionBank}>
+            <Text className={styles.emptyButtonText}>去题库练习</Text>
+          </View>
         </View>
       )}
 

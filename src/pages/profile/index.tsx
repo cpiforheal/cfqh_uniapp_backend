@@ -1,9 +1,8 @@
 import { Image, Input, Text, View } from '@tarojs/components'
 import Taro, { useDidShow, usePullDownRefresh } from '@tarojs/taro'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { activateLicense, getProfileOverview, loginWithWechatProfile } from '@/services/nursing'
-import { isAuthorized } from '@/services/nursing'
+import { activateLicense, getProfileOverview, isAuthorized, loginWithWechatProfile } from '@/services/nursing'
 import { useAuthStore } from '@/stores/auth'
 import styles from './index.module.scss'
 
@@ -46,6 +45,7 @@ function statusDisplay(status?: string, daysLeft?: number | null) {
 }
 
 export default function ProfilePage() {
+  const queryClient = useQueryClient()
   const tokenCodeFromStore = useAuthStore((state) => state.tokenCode)
   const setAuthorized = useAuthStore((state) => state.setAuthorized)
 
@@ -75,12 +75,20 @@ export default function ProfilePage() {
     }
   }, [isRefetching])
 
-  const tokenCode = data?.authorization?.tokenCode || tokenCodeFromStore
-  const expiresText = data?.authorization?.expiresText
+  useEffect(() => {
+    if (!data?.authorization || !isAuthorized(data.authorization)) return
+    if (data.authorization.tokenCode) setAuthorized(data.authorization.tokenCode, undefined)
+  }, [data?.authorization, setAuthorized])
+
+  const remoteAuthorization = data?.authorization
+  const displayAuthorization = remoteAuthorization
+
+  const expiresText = displayAuthorization?.expiresText
   const daysLeft = useMemo(() => parseDaysLeft(expiresText), [expiresText])
-  const status = statusDisplay(data?.authorization?.status, daysLeft)
-  const authorized = isAuthorized(data?.authorization)
-  const scopeText = data?.authorization?.resourceScopeText || '医护题库、解析、案例材料、公开讲解'
+  const status = statusDisplay(displayAuthorization?.status, daysLeft)
+  const authorized = isAuthorized(displayAuthorization)
+  const tokenCode = authorized ? displayAuthorization?.tokenCode || tokenCodeFromStore : ''
+  const scopeText = displayAuthorization?.resourceScopeText || '医护题库、解析、案例材料、公开讲解'
 
   async function handleCopy() {
     if (!tokenCode) {
@@ -125,6 +133,13 @@ export default function ProfilePage() {
     }
 
     setAuthorized(result.authorization?.licenseToken?.code || trimmed, result.authorization?.expiresAt)
+    queryClient.setQueryData(['licenseStatus'], result)
+    queryClient.invalidateQueries({ queryKey: ['practiceHome'] })
+    queryClient.invalidateQueries({ queryKey: ['questionBank'] })
+    queryClient.invalidateQueries({ queryKey: ['profileOverview'] })
+    queryClient.invalidateQueries({ queryKey: ['moduleQuestions'] })
+    queryClient.invalidateQueries({ queryKey: ['questionDetail'] })
+    queryClient.invalidateQueries({ queryKey: ['videoLessons'] })
     setReplaceVisible(false)
     Taro.showToast({ title: '已更换通行码', icon: 'success' })
     refetch()

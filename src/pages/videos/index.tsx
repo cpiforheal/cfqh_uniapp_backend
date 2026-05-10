@@ -2,8 +2,7 @@ import { Image, Text, Video, View } from '@tarojs/components'
 import Taro, { useDidShow, usePullDownRefresh } from '@tarojs/taro'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { getVideoLessons } from '@/services/nursing'
-import { isAuthorized } from '@/services/nursing'
+import { getLicenseStatus, getVideoLessons } from '@/services/nursing'
 import { useAuthStore } from '@/stores/auth'
 import type { VideoLessonSummary } from '@/types/study'
 
@@ -51,13 +50,25 @@ function VideoItem({ video, active, onPlay }: { video: VideoLessonSummary; activ
 
 export default function VideosPage() {
   const [activeVideoId, setActiveVideoId] = useState<string>()
-  const authStatus = useAuthStore((state) => state.status)
-  const authorized = isAuthorized(authStatus)
+  const setAuthorized = useAuthStore((state) => state.setAuthorized)
+  const { data: licenseStatus, isLoading: isLicenseLoading } = useQuery({
+    queryKey: ['licenseStatus'],
+    queryFn: getLicenseStatus,
+  })
+  const authorized = Boolean(licenseStatus?.authorized)
+  const checkingAuthorization = !authorized && isLicenseLoading
   const { data = [], refetch, isRefetching } = useQuery({
     queryKey: ['videoLessons'],
     queryFn: () => getVideoLessons(),
     enabled: authorized,
   })
+
+  useEffect(() => {
+    if (!licenseStatus?.authorized) return
+    const tokenCode = licenseStatus.authorization?.licenseToken?.code
+    if (tokenCode) setAuthorized(tokenCode, licenseStatus.authorization?.expiresAt)
+    refetch()
+  }, [licenseStatus, refetch, setAuthorized])
 
   useDidShow(() => {
     if (authorized) refetch()
@@ -76,7 +87,12 @@ export default function VideosPage() {
     <View style={{ minHeight: '100vh', padding: '32px 24px 72px', background: '#f7fbfb', boxSizing: 'border-box' }}>
       <Text style={{ display: 'block', color: '#17364c', fontSize: '38px', fontWeight: '800' }}>公开讲解</Text>
       <Text style={{ display: 'block', marginTop: '12px', color: '#627577', fontSize: '25px', lineHeight: 1.6 }}>{authorized ? '后台发布后，这里直接播放 COS 自定义域名视频链接。' : '当前仅展示公开讲解资源入口，激活后可查看已发布视频。'}</Text>
-      {!authorized ? (
+      {checkingAuthorization ? (
+        <View style={{ marginTop: '28px', padding: '30px 24px', borderRadius: '20px', background: '#fff', border: '1px solid #dbe8e9' }}>
+          <Text style={{ display: 'block', color: '#17364c', fontSize: '30px', fontWeight: '800' }}>正在确认授权</Text>
+          <Text style={{ display: 'block', marginTop: '10px', color: '#627577', fontSize: '24px', lineHeight: 1.6 }}>正在读取后端授权状态，请稍候。</Text>
+        </View>
+      ) : !authorized ? (
         <View style={{ marginTop: '28px', padding: '30px 24px', borderRadius: '20px', background: '#e6f3f3', border: '1px solid #cde6e7' }}>
           <Text style={{ display: 'block', color: '#0f7f83', fontSize: '30px', fontWeight: '800' }}>公开视频已锁定</Text>
           <Text style={{ display: 'block', marginTop: '10px', color: '#627577', fontSize: '24px', lineHeight: 1.6 }}>输入学习通行码后，可以按人体解剖学、生理学、临床医学概论、临床技能操作查看对应讲解。</Text>

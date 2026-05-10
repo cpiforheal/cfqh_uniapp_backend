@@ -2,85 +2,180 @@
 
 .page {
   min-height: 100vh;
-  padding: 26px 24px 130px;
+  padding: 72px 32px 130px;
   background: $color-bg-page;
   box-sizing: border-box;
 }
 
-.topBar {
-  height: 54px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.hero {
+  padding-top: 12px;
 }
 
-.navSpacer {
-  width: 56px;
-}
-
-.title {
-  flex: 1;
-  text-align: center;
-  color: #17364c;
-  font-size: 28px;
+.brandText {
+  display: block;
+  color: $color-primary;
+  font-size: $font-hint;
   font-weight: 800;
 }
 
-.activateBanner {
-  height: 76px;
+.title {
+  display: block;
+  margin-top: 28px;
+  color: $color-text-primary;
+  font-size: $font-heading;
+  font-weight: 800;
+  line-height: 1.42;
+}
+
+.desc {
+  display: block;
   margin-top: 18px;
-  padding: 0 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border: 1px solid #d8ecee;
-  border-radius: 12px;
-  background: #f2fbfb;
+  color: $color-text-muted;
+  font-size: $font-body;
+  line-height: 1.7;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-top: 34px;
+}
+
+.summaryCard {
+  min-height: 126px;
+  padding: 22px 12px 18px;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-bg-card;
+  box-shadow: $shadow-card;
+  text-align: center;
   box-sizing: border-box;
 }
 
-.bannerText {
+.summaryValue {
+  display: block;
+  color: $color-primary-dark;
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.summaryLabel {
+  display: block;
+  margin-top: 12px;
+  color: $color-text-muted;
+  font-size: $font-hint;
+  line-height: 1.3;
+}
+
+.activateBanner {
+  min-height: 106px;
+  margin-top: 18px;
+  padding: 20px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-primary-soft;
+  box-sizing: border-box;
+}
+
+.bannerMain {
   flex: 1;
-  color: #758893;
-  font-size: 23px;
+  min-width: 0;
+}
+
+.bannerTitle {
+  display: block;
+  color: $color-text-regular;
+  font-size: $font-body;
+  font-weight: 800;
+}
+
+.bannerText {
+  display: block;
+  margin-top: 8px;
+  color: $color-text-muted;
+  font-size: $font-hint;
   font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.45;
 }
 
 .activateButton {
-  height: 48px;
-  min-width: 112px;
-  margin-left: 14px;
+  height: 58px;
+  min-width: 126px;
   padding: 0 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 24px;
+  border-radius: $radius-pill;
   background: $color-primary;
-  box-shadow: 0 8px 18px rgba(15, 127, 131, 0.18);
+  box-shadow: $shadow-primary;
   box-sizing: border-box;
 }
 
 .activateButtonText {
   color: #ffffff;
-  font-size: 23px;
+  font-size: $font-hint;
   font-weight: 800;
 }
 
 .list {
-  margin-top: 18px;
+  margin-top: 30px;
+}
+
+.loadingCard {
+  margin-top: 30px;
+  padding: 30px 28px;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-bg-card;
+  box-shadow: $shadow-card;
+}
+
+.loadingTitle {
+  display: block;
+  color: $color-text-regular;
+  font-size: $font-body;
+  font-weight: 800;
+}
+
+.loadingText {
+  display: block;
+  margin-top: 10px;
+  color: $color-text-muted;
+  font-size: $font-hint;
+  line-height: 1.55;
+}
+
+.retryButton {
+  width: 180px;
+  height: 58px;
+  margin-top: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-pill;
+  background: $color-primary;
+}
+
+.retryButtonText {
+  color: #ffffff;
+  font-size: $font-hint;
+  font-weight: 800;
 }
 
 .catalogCard {
-  min-height: 150px;
+  min-height: 174px;
   margin-top: 18px;
-  padding: 24px 22px 22px;
-  border: 1px solid #e6f0f1;
-  border-radius: 16px;
-  background: #ffffff;
-  box-shadow: 0 8px 22px rgba(24, 67, 76, 0.045);
+  padding: 26px 24px 24px;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-bg-card;
+  box-shadow: $shadow-card;
   box-sizing: border-box;
 }
 
@@ -90,13 +185,14 @@
 }
 
 .iconBox {
-  width: 42px;
-  height: 42px;
+  width: 56px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 11px;
-  background: #e9f8f8;
+  flex-shrink: 0;
+  border-radius: $radius-sm;
+  background: $color-primary-soft;
 }
 
 .iconText {
@@ -106,26 +202,43 @@
   line-height: 1;
 }
 
-.chapterTitle {
+.chapterMain {
   flex: 1;
+  min-width: 0;
   margin-left: 18px;
-  color: #17364c;
+}
+
+.chapterTitle {
+  display: block;
+  color: $color-text-regular;
   font-size: 30px;
   font-weight: 800;
-  line-height: 1.2;
+  line-height: 1.25;
+}
+
+.chapterDesc {
+  display: block;
+  margin-top: 8px;
+  color: $color-text-muted;
+  font-size: $font-hint;
+  line-height: 1.35;
 }
 
 .arrow {
-  color: #415766;
-  font-size: 42px;
+  flex-shrink: 0;
+  margin-left: 12px;
+  color: $color-primary-dark;
+  font-size: 34px;
+  font-weight: 800;
   line-height: 1;
 }
 
 .lockText {
   flex-shrink: 0;
-  padding: 7px 12px;
-  border-radius: 12px;
-  background: #eef8f8;
+  margin-left: 12px;
+  padding: 8px 14px;
+  border-radius: $radius-sm;
+  background: $color-primary-soft;
   color: $color-primary;
   font-size: 22px;
   font-weight: 800;
@@ -133,58 +246,58 @@
 }
 
 .metaRow {
-  margin-top: 19px;
+  margin-top: 22px;
   display: flex;
   align-items: center;
   gap: 18px;
 }
 
 .metaText {
-  color: #7c8d97;
-  font-size: 23px;
+  color: $color-text-muted;
+  font-size: $font-hint;
   line-height: 1;
 }
 
 .difficultyTag {
-  padding: 7px 14px;
-  border-radius: 8px;
-  background: #fff3ea;
-  color: #e89143;
+  padding: 8px 14px;
+  border-radius: $radius-sm;
+  background: $color-primary-soft;
+  color: $color-primary;
   font-size: 22px;
   font-weight: 700;
   line-height: 1;
 }
 
 .hardTag {
-  background: #fff0ec;
-  color: #ef785f;
+  background: $color-warning-soft;
+  color: $color-warning;
 }
 
 .progressRow {
-  margin-top: 17px;
+  margin-top: 20px;
   display: flex;
-  align-items: center;
-  gap: 18px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
 }
 
 .progressLabel {
-  color: #7c8d97;
-  font-size: 23px;
-  line-height: 1;
-  white-space: nowrap;
+  color: $color-text-muted;
+  font-size: $font-hint;
+  line-height: 1.45;
 }
 
 .progressTrack {
-  width: 170px;
-  height: 8px;
+  width: 100%;
+  height: 10px;
   overflow: hidden;
-  border-radius: 999px;
-  background: #e9eff0;
+  border-radius: $radius-pill;
+  background: $color-divider;
 }
 
 .progressFill {
   height: 100%;
-  border-radius: 999px;
+  border-radius: $radius-pill;
   background: $color-primary;
 }
 
@@ -193,21 +306,21 @@
   left: 24px;
   right: 24px;
   bottom: 86px;
-  height: 70px;
-  padding: 0 16px;
+  min-height: 76px;
+  padding: 14px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border: 1px solid #cce9e9;
-  border-radius: 14px;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
   background: rgba(235, 249, 249, 0.96);
   box-sizing: border-box;
-  box-shadow: 0 8px 20px rgba(0, 157, 166, 0.08);
+  box-shadow: $shadow-float;
 }
 
 .bottomText {
   flex: 1;
-  color: #758893;
+  color: $color-text-muted;
   font-size: 22px;
   font-weight: 600;
   white-space: nowrap;
@@ -223,7 +336,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 24px;
+  border-radius: $radius-pill;
   background: $color-primary;
   box-sizing: border-box;
 }

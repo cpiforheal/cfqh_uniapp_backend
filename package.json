@@ -5,7 +5,11 @@
   "description": "专转本医护大类自学辅助微信小程序",
   "scripts": {
     "dev:weapp": "taro build --type weapp --watch",
+    "dev:weapp:local": "node scripts/weapp-local-dev.mjs --watch",
+    "dev:weapp:devtools": "CFQH_LOCAL_TARGET=devtools node scripts/weapp-local-dev.mjs --watch",
     "build:weapp": "taro build --type weapp",
+    "build:weapp:local": "node scripts/weapp-local-dev.mjs",
+    "build:weapp:devtools": "CFQH_LOCAL_TARGET=devtools node scripts/weapp-local-dev.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

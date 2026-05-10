@@ -2,7 +2,7 @@ import { Text, View } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { addFavorite, getQuestionDetail, isAuthorized, submitPracticeRecord } from '@/services/nursing'
+import { addFavorite, getLicenseStatus, getQuestionDetail, submitPracticeRecord } from '@/services/nursing'
 import { useAuthStore } from '@/stores/auth'
 import styles from './index.module.scss'
 
@@ -17,8 +17,13 @@ export default function QuestionDetailPage() {
   const [submitting, setSubmitting] = useState(false)
   const [activeReviewTab, setActiveReviewTab] = useState<ReviewTabKey>('analysis')
 
-  const authStatus = useAuthStore((state) => state.status)
-  const authorized = isAuthorized(authStatus)
+  const setAuthorized = useAuthStore((state) => state.setAuthorized)
+  const { data: licenseStatus, isLoading: isLicenseLoading } = useQuery({
+    queryKey: ['licenseStatus'],
+    queryFn: getLicenseStatus,
+  })
+  const authorized = Boolean(licenseStatus?.authorized)
+  const checkingAuthorization = !authorized && isLicenseLoading
 
   const { data, isError, isLoading } = useQuery({
     queryKey: ['questionDetail', questionId],
@@ -33,6 +38,12 @@ export default function QuestionDetailPage() {
     setSubmitting(false)
     setActiveReviewTab('analysis')
   }, [questionId])
+
+  useEffect(() => {
+    if (!licenseStatus?.authorized) return
+    const tokenCode = licenseStatus.authorization?.licenseToken?.code
+    if (tokenCode) setAuthorized(tokenCode, licenseStatus.authorization?.expiresAt)
+  }, [licenseStatus, setAuthorized])
 
   async function handleSubmit() {
     if (!data) return
@@ -73,6 +84,20 @@ export default function QuestionDetailPage() {
 
   function goActivate() {
     Taro.reLaunch({ url: '/pages/activate/index' })
+  }
+
+  if (checkingAuthorization) {
+    return (
+      <View className={styles.page}>
+        <View className={styles.lockCard}>
+          <View className={styles.lockBadge}>
+            <Text className={styles.lockBadgeText}>CHECK</Text>
+          </View>
+          <Text className={styles.lockTitle}>正在确认授权</Text>
+          <Text className={styles.lockDesc}>正在读取本机缓存和后端授权状态，请稍候。</Text>
+        </View>
+      </View>
+    )
   }
 
   if (!authorized) {

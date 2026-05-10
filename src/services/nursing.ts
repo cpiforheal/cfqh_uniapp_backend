@@ -170,6 +170,7 @@ type LoginResponse = {
 }
 
 function getOpenId() {
+  if (MINIAPP_ENV.skipWechatLogin && MINIAPP_ENV.devOpenId) return MINIAPP_ENV.devOpenId
   return Taro.getStorageSync<string>(OPEN_ID_STORAGE_KEY) || MINIAPP_ENV.devOpenId
 }
 
@@ -234,24 +235,33 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     }
 
     const openId = getOpenId()
-    const response = await Taro.request<T>({
-      url: `${MINIAPP_ENV.apiBase}${path}`,
-      method: options.method || 'GET',
-      data: options.data,
-      timeout: 15000,
-      header: {
-        'content-type': 'application/json',
-        ...(openId ? { 'x-open-id': openId } : {}),
-        ...(options.header || {}),
-      },
-    })
+    const apiBases = Array.from(new Set([MINIAPP_ENV.apiBase, ...MINIAPP_ENV.apiFallbackBases].filter(Boolean)))
+    for (const apiBase of apiBases) {
+      try {
+        const response = await Taro.request<T>({
+          url: `${apiBase}${path}`,
+          method: options.method || 'GET',
+          data: options.data,
+          timeout: 8000,
+          header: {
+            'content-type': 'application/json',
+            ...(openId ? { 'x-open-id': openId } : {}),
+            ...(options.header || {}),
+          },
+        })
 
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      console.warn(`request failed: ${path}`, response.statusCode, response.data)
-      return null
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          return response.data
+        }
+
+        console.warn(`request failed: ${path}`, response.statusCode, response.data)
+        if (response.statusCode < 500) return null
+      } catch (error) {
+        console.warn(`request failed: ${path}`, error)
+      }
     }
 
-    return response.data
+    return null
   } catch (error) {
     console.warn(`request failed: ${path}`, error)
     return null
@@ -260,6 +270,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
 async function loginMiniappUser(profile?: { nickname?: string; avatarUrl?: string }) {
   const openId = getOpenId()
+  if (MINIAPP_ENV.skipWechatLogin && openId) {
+    Taro.setStorageSync(OPEN_ID_STORAGE_KEY, openId)
+    return openId
+  }
+
   const code = await getWechatLoginCode()
   const result = await request<LoginResponse>('/auth/wechat-login', {
     method: 'POST',
@@ -345,9 +360,10 @@ function normalizeVideo(item: ApiVideo): VideoLessonSummary {
 }
 
 function normalizeAuthorization(result?: { authorized?: boolean; reason?: string; authorization?: { expiresAt?: string; licenseToken?: { code?: string } } } | null): AuthorizationInfo {
+  const authorized = Boolean(result?.authorized)
   return {
-    status: result?.authorized ? 'authorized' : 'unauthorized',
-    tokenCode: result?.authorization?.licenseToken?.code || getTokenCode(),
+    status: authorized ? 'authorized' : 'unauthorized',
+    tokenCode: authorized ? result?.authorization?.licenseToken?.code || getTokenCode() : '',
     expiresText: result?.authorization?.expiresAt ? `有效期至 ${String(result.authorization.expiresAt).slice(0, 10)}` : '已激活后可使用完整资源',
     resourceScopeText: '医护题库、解析、案例材料、公开讲解',
     reason: result?.reason,
@@ -363,6 +379,15 @@ export async function activateLicense(code: string) {
 
   if (result?.authorized) {
     Taro.setStorageSync(TOKEN_STORAGE_KEY, result.authorization?.licenseToken?.code || code)
+    return result
+  }
+
+  if (MINIAPP_ENV.skipWechatLogin && result?.reason === 'bound_to_other_account') {
+    const status = await getLicenseStatus()
+    if (status.authorized) {
+      Taro.setStorageSync(TOKEN_STORAGE_KEY, status.authorization?.licenseToken?.code || code)
+      return status
+    }
   }
 
   return result
@@ -451,16 +476,24 @@ export async function getQuestionBankOverview(): Promise<QuestionBankOverview> {
     }
   }
 
+  const authorization = normalizeAuthorization(licenseStatus)
+
   const catalog = await request<QuestionCatalogItem[]>('/catalog')
   if (!catalog || catalog.length === 0) {
-    if (!MINIAPP_ENV.useMockFallback) return { ...questionBankMock, catalog: [], questions: [] }
-    return getLocalQuestionBankOverview()
+    return {
+      ...questionBankMock,
+      authorization,
+      catalog: [],
+      questions: [],
+    }
   }
 
   return {
     ...questionBankMock,
+    authorization,
     catalog: catalog.map((item) => ({
       ...item,
+      locked: false,
       iconText: item.iconText || '题',
     })),
   }

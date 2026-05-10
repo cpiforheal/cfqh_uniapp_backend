@@ -7,6 +7,20 @@ import { ActivateLicenseDto } from './dto/activate-license.dto'
 export class LicenseService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private ensureUser(openId: string) {
+    return this.prisma.user.upsert({
+      where: { openId },
+      update: {},
+      create: {
+        openId,
+        nickname: '微信用户',
+        loginCount: 0,
+        lastLoginAt: new Date(),
+        lastClientEnv: 'miniapp',
+      },
+    })
+  }
+
   private normalizeLicenseCode(input: string) {
     const trimmed = String(input || '').trim().toUpperCase()
     const compact = trimmed.replace(/[^A-Z0-9]/g, '')
@@ -21,8 +35,7 @@ export class LicenseService {
   }
 
   async activate(dto: ActivateLicenseDto, openId: string) {
-    const user = await this.prisma.user.findUnique({ where: { openId } })
-    if (!user) throw new NotFoundException('用户不存在，请先登录')
+    const user = await this.ensureUser(openId)
 
     const codeCandidates = this.normalizeLicenseCode(dto.code)
     const token = await this.prisma.licenseToken.findFirst({ where: { code: { in: codeCandidates } } })
@@ -71,6 +84,7 @@ export class LicenseService {
   }
 
   async status(openId: string, subjectScope: SubjectCode = SubjectCode.nursing) {
+    await this.ensureUser(openId)
     const user = await this.prisma.user.findUnique({
       where: { openId },
       include: { authorization: { include: { licenseToken: true } } },

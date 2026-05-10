@@ -1,7 +1,8 @@
 import { Input, Text, View } from '@tarojs/components'
 import Taro from '@tarojs/taro'
-import { useState } from 'react'
-import { activateLicense, loginWithWechatProfile } from '@/services/nursing'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { activateLicense, getLicenseStatus, loginWithWechatProfile } from '@/services/nursing'
 import { useAuthStore } from '@/stores/auth'
 import styles from './index.module.scss'
 
@@ -26,12 +27,35 @@ function formatDisplay(value: string) {
 }
 
 export default function ActivatePage() {
+  const queryClient = useQueryClient()
   const [code, setCode] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [loginSubmitting, setLoginSubmitting] = useState(false)
   const [loginSynced, setLoginSynced] = useState(false)
   const [errorText, setErrorText] = useState('')
   const setAuthorized = useAuthStore((state) => state.setAuthorized)
+  const { data: licenseStatus, refetch: refetchLicenseStatus } = useQuery({
+    queryKey: ['licenseStatus'],
+    queryFn: getLicenseStatus,
+  })
+
+  function refreshAuthorizedCache(status?: { authorized?: boolean; authorization?: { expiresAt?: string; licenseToken?: { code?: string } } } | null) {
+    if (!status?.authorized) return
+    queryClient.setQueryData(['licenseStatus'], status)
+    queryClient.invalidateQueries({ queryKey: ['practiceHome'] })
+    queryClient.invalidateQueries({ queryKey: ['questionBank'] })
+    queryClient.invalidateQueries({ queryKey: ['profileOverview'] })
+    queryClient.invalidateQueries({ queryKey: ['moduleQuestions'] })
+    queryClient.invalidateQueries({ queryKey: ['questionDetail'] })
+    queryClient.invalidateQueries({ queryKey: ['videoLessons'] })
+  }
+
+  useEffect(() => {
+    if (!licenseStatus?.authorized) return
+    const tokenCode = licenseStatus.authorization?.licenseToken?.code
+    if (tokenCode) setAuthorized(tokenCode, licenseStatus.authorization?.expiresAt)
+    refreshAuthorizedCache(licenseStatus)
+  }, [licenseStatus, setAuthorized])
 
   function handleInput(value: string) {
     setErrorText('')
@@ -80,6 +104,18 @@ export default function ActivatePage() {
     setSubmitting(false)
 
     if (!result?.authorized) {
+      const latestStatus = await refetchLicenseStatus()
+      if (latestStatus.data?.authorized) {
+        const activeCode = latestStatus.data.authorization?.licenseToken?.code || tokenCode
+        setAuthorized(activeCode, latestStatus.data.authorization?.expiresAt)
+        refreshAuthorizedCache(latestStatus.data)
+        Taro.showToast({ title: '账号已激活', icon: 'success' })
+        setTimeout(() => {
+          Taro.switchTab({ url: '/pages/practice/index' })
+        }, 600)
+        return
+      }
+
       const reason = result?.reason
       if (reason === 'expired') {
         setErrorText('该通行码已过期，请联系发放人员更换')
@@ -95,6 +131,7 @@ export default function ActivatePage() {
 
     const expiresAt = result.authorization?.expiresAt
     setAuthorized(result.authorization?.licenseToken?.code || tokenCode, expiresAt)
+    refreshAuthorizedCache(result)
     Taro.showToast({ title: '激活成功', icon: 'success' })
     setTimeout(() => {
       Taro.switchTab({ url: '/pages/practice/index' })
@@ -119,6 +156,8 @@ export default function ActivatePage() {
   const canSubmit = CODE_PATTERN.test(code) && !submitting
   const displayValue = formatDisplay(code)
   const targetLength = code.startsWith('NUR-') ? 12 : 8
+  const alreadyAuthorized = Boolean(licenseStatus?.authorized)
+  const currentTokenCode = licenseStatus?.authorization?.licenseToken?.code
 
   return (
     <View className={styles.page}>
@@ -131,6 +170,18 @@ export default function ActivatePage() {
       </View>
 
       <View className={styles.formCard}>
+        {alreadyAuthorized && (
+          <View className={styles.loginCard}>
+            <View className={styles.loginTextBlock}>
+              <Text className={styles.loginTitle}>当前账号已激活</Text>
+              <Text className={styles.loginDesc}>已绑定通行码 {currentTokenCode || '当前账号'}，可直接进入题库继续练习。</Text>
+            </View>
+            <View className={styles.loginBtn} onTap={() => Taro.switchTab({ url: '/pages/practice/index' })}>
+              <Text className={styles.loginBtnText}>去练习</Text>
+            </View>
+          </View>
+        )}
+
         <View className={styles.loginCard}>
           <View className={styles.loginTextBlock}>
             <Text className={styles.loginTitle}>{loginSynced ? '微信账号已同步' : '先同步微信账号'}</Text>

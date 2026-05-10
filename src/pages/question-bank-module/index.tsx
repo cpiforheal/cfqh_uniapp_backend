@@ -2,7 +2,7 @@ import { Text, View } from '@tarojs/components'
 import Taro, { useDidShow, usePullDownRefresh } from '@tarojs/taro'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { getModuleQuestions, isAuthorized } from '@/services/nursing'
+import { getLicenseStatus, getModuleQuestions } from '@/services/nursing'
 import { useAuthStore } from '@/stores/auth'
 import type { ChapterQuestionGroup } from '@/types/study'
 import styles from './index.module.scss'
@@ -65,8 +65,13 @@ export default function QuestionBankModulePage() {
   const router = Taro.useRouter()
   const moduleCode = String(router.params.moduleCode || 'anatomy')
   const moduleName = decodeURIComponent(String(router.params.moduleName || '医护模块'))
-  const authStatus = useAuthStore((state) => state.status)
-  const authorized = isAuthorized(authStatus)
+  const setAuthorized = useAuthStore((state) => state.setAuthorized)
+  const { data: licenseStatus, isLoading: isLicenseLoading } = useQuery({
+    queryKey: ['licenseStatus'],
+    queryFn: getLicenseStatus,
+  })
+  const authorized = Boolean(licenseStatus?.authorized)
+  const checkingAuthorization = !authorized && isLicenseLoading
 
   const { data = [], refetch, isRefetching } = useQuery({
     queryKey: ['moduleQuestions', moduleCode],
@@ -91,38 +96,46 @@ export default function QuestionBankModulePage() {
   const chapterPresets = useMemo(() => moduleChapterPresets[moduleCode] || [], [moduleCode])
 
   const mergedChapters = useMemo(() => {
-    const fromPreset = chapterPresets.map((preset) => {
-      const matched = chapterGroups.find((group) => isChapterMatched(group.chapter, preset.title))
+    const realChapters = chapterGroups.map((group) => {
+      const matchedPreset = chapterPresets.find((preset) => isChapterMatched(group.chapter, preset.title))
       return {
-        chapter: matched?.chapter || preset.title,
-        preview: preset.preview,
-        questionCount: matched?.questions.length || 0,
+        chapter: group.chapter,
+        preview: matchedPreset?.preview || '已同步题库章节',
+        questionCount: group.questions.length,
       }
     })
 
-    const extra = chapterGroups
-      .filter((group) => !fromPreset.find((item) => item.chapter === group.chapter))
-      .map((group) => ({
-        chapter: group.chapter,
-        preview: '后续补充说明',
-        questionCount: group.questions.length,
+    const lockedOutline = chapterPresets
+      .filter((preset) => !chapterGroups.find((group) => isChapterMatched(group.chapter, preset.title)))
+      .map((preset) => ({
+        chapter: preset.title,
+        preview: preset.preview,
+        questionCount: 0,
       }))
 
-    return [...fromPreset, ...extra]
+    return [...realChapters, ...lockedOutline]
   }, [chapterPresets, chapterGroups])
 
   const [activeChapter, setActiveChapter] = useState<string>('')
 
   useEffect(() => {
-    if (!activeChapter && mergedChapters.length > 0) {
-      setActiveChapter(mergedChapters[0].chapter)
-    }
-    if (activeChapter && !mergedChapters.find((item) => item.chapter === activeChapter) && mergedChapters.length > 0) {
-      setActiveChapter(mergedChapters[0].chapter)
+    const preferredChapter = mergedChapters.find((item) => item.questionCount > 0)?.chapter || mergedChapters[0]?.chapter || ''
+    if (!preferredChapter) return
+
+    const active = mergedChapters.find((item) => item.chapter === activeChapter)
+    if (!activeChapter || !active || (chapterGroups.length > 0 && active.questionCount === 0)) {
+      setActiveChapter(preferredChapter)
     }
   }, [mergedChapters, activeChapter])
 
   const currentGroup = chapterGroups.find((item) => item.chapter === activeChapter)
+
+  useEffect(() => {
+    if (!licenseStatus?.authorized) return
+    const tokenCode = licenseStatus.authorization?.licenseToken?.code
+    if (tokenCode) setAuthorized(tokenCode, licenseStatus.authorization?.expiresAt)
+    refetch()
+  }, [licenseStatus, refetch, setAuthorized])
 
   useDidShow(() => {
     if (authorized) refetch()
@@ -146,11 +159,13 @@ export default function QuestionBankModulePage() {
 
       {!authorized && (
         <View className={styles.lockPanel}>
-          <Text className={styles.lockTitle}>题目内容已锁定</Text>
-          <Text className={styles.lockText}>输入学习通行码后，系统会展示本模块下的题目、答案解析、练习进度和错题记录。</Text>
-          <View className={styles.lockButton} onTap={() => Taro.navigateTo({ url: '/pages/activate/index' })}>
-            <Text className={styles.lockButtonText}>去激活</Text>
-          </View>
+          <Text className={styles.lockTitle}>{checkingAuthorization ? '正在确认授权' : '题目内容已锁定'}</Text>
+          <Text className={styles.lockText}>{checkingAuthorization ? '正在读取本机缓存和后端授权状态，请稍候。' : '输入学习通行码后，系统会展示本模块下的题目、答案解析、练习进度和错题记录。'}</Text>
+          {!checkingAuthorization && (
+            <View className={styles.lockButton} onTap={() => Taro.navigateTo({ url: '/pages/activate/index' })}>
+              <Text className={styles.lockButtonText}>去激活</Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -171,7 +186,7 @@ export default function QuestionBankModulePage() {
 
         <View className={styles.content}>
           {!authorized ? (
-            <View className={styles.empty}><Text>激活后查看本章节题目列表</Text></View>
+            <View className={styles.empty}><Text>{checkingAuthorization ? '正在确认授权状态' : '激活后查看本章节题目列表'}</Text></View>
           ) : !currentGroup ? (
             <View className={styles.empty}><Text>当前子章节暂无题目，稍后可在后台补充后自动同步</Text></View>
           ) : (
