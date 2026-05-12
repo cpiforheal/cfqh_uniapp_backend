@@ -1,10 +1,11 @@
-import { CopyOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons'
+import { CopyOutlined, PlusOutlined, ReloadOutlined, DownloadOutlined } from '@ant-design/icons'
 import { ProColumns, ProTable, StatisticCard } from '@ant-design/pro-components'
-import { Alert, Button, Col, Empty, Input, Popconfirm, Row, Select, Space, Tag, Typography, message } from 'antd'
+import { Alert, Button, Col, Empty, Input, InputNumber, Modal, Popconfirm, Row, Select, Space, Tag, Typography, message } from 'antd'
 import { useMemo, useRef, useState } from 'react'
 import type { ActionType } from '@ant-design/pro-components'
 import { SubjectAwarePageContainer } from '@/components/SubjectAwarePageContainer'
-import { deleteStudentLicenseToken, disableStudentLicenseToken, extendStudentLicenseToken, issueUnboundLicenseToken, queryAdminLicenseTokens } from '@/services/adminNursing'
+import { describeAdminFetchError } from '@/services/adminApi'
+import { batchGenerateLicenseTokens, deleteStudentLicenseToken, disableStudentLicenseToken, extendStudentLicenseToken, issueUnboundLicenseToken, queryAdminLicenseTokens } from '@/services/adminNursing'
 import type { AdminLicenseTokenRow } from '@/types/content'
 
 function formatDate(value?: string | null, fallback = '-') {
@@ -42,6 +43,41 @@ export default function LicenseTokensPage() {
   const actionRef = useRef<ActionType>()
   const [keyword, setKeyword] = useState('')
   const [status, setStatus] = useState('all')
+  const [batchModalOpen, setBatchModalOpen] = useState(false)
+  const [batchCount, setBatchCount] = useState(10)
+  const [batchDays, setBatchDays] = useState(90)
+  const [batchGroupTag, setBatchGroupTag] = useState('')
+  const [batchLoading, setBatchLoading] = useState(false)
+  const [batchResult, setBatchResult] = useState<string[]>([])
+
+  async function handleBatchGenerate() {
+    setBatchLoading(true)
+    try {
+      const payload: { count: number; expiresDays: number; groupTag?: string } = { count: batchCount, expiresDays: batchDays }
+      if (batchGroupTag.trim()) payload.groupTag = batchGroupTag.trim()
+      const result = await batchGenerateLicenseTokens(payload)
+      const codes = result.map((item) => item.code)
+      setBatchResult(codes)
+      message.success(`已生成 ${codes.length} 个授权码`)
+      actionRef.current?.reload()
+    } catch (error) {
+      message.error(describeAdminFetchError(error, '批量生成失败'))
+    } finally {
+      setBatchLoading(false)
+    }
+  }
+
+  function exportBatchCsv() {
+    if (batchResult.length === 0) return
+    const csv = '授权码\n' + batchResult.join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `授权码_${new Date().toISOString().slice(0, 10)}_${batchResult.length}个.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
   const [latestRows, setLatestRows] = useState<AdminLicenseTokenRow[]>([])
 
   const summary = useMemo(() => {
@@ -156,7 +192,7 @@ export default function LicenseTokensPage() {
             return { data: rows, success: true }
           } catch (error) {
             console.warn('query license tokens failed', error)
-            message.error('授权码台账加载失败，请检查后端服务')
+            message.error(describeAdminFetchError(error, '授权码台账加载失败，请检查后端服务'))
             return { data: [], success: true }
           }
         }}
@@ -177,11 +213,18 @@ export default function LicenseTokensPage() {
                 actionRef.current?.reload()
               } catch (error) {
                 console.warn('issue unbound license token failed', error)
-                message.error(getErrorMessage(error, '未绑定授权码生成失败'))
+                message.error(describeAdminFetchError(error, getErrorMessage(error, '未绑定授权码生成失败')))
               }
             }}
           >
             生成未绑定码
+          </Button>,
+          <Button
+            key="batch-generate"
+            icon={<DownloadOutlined />}
+            onClick={() => setBatchModalOpen(true)}
+          >
+            批量生成
           </Button>,
           <Input
             key="keyword"
@@ -226,6 +269,44 @@ export default function LicenseTokensPage() {
           </Row>
         )}
       />
+      <Modal
+        title="批量生成授权码"
+        open={batchModalOpen}
+        onCancel={() => { setBatchModalOpen(false); setBatchResult([]) }}
+        footer={batchResult.length > 0 ? [
+          <Button key="export" type="primary" icon={<DownloadOutlined />} onClick={exportBatchCsv}>导出 CSV</Button>,
+          <Button key="copy" onClick={() => { navigator.clipboard?.writeText(batchResult.join('\n')); message.success('已复制全部授权码') }}>复制全部</Button>,
+          <Button key="close" onClick={() => { setBatchModalOpen(false); setBatchResult([]) }}>关闭</Button>,
+        ] : [
+          <Button key="cancel" onClick={() => setBatchModalOpen(false)}>取消</Button>,
+          <Button key="generate" type="primary" loading={batchLoading} onClick={handleBatchGenerate}>生成</Button>,
+        ]}
+      >
+        {batchResult.length > 0 ? (
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Alert message={`已生成 ${batchResult.length} 个授权码`} type="success" showIcon />
+            <Typography.Paragraph copyable={{ text: batchResult.join('\n') }} style={{ maxHeight: 300, overflow: 'auto', background: '#f5f5f5', padding: 12, borderRadius: 8, fontFamily: 'monospace', fontSize: 13 }}>
+              {batchResult.join('\n')}
+            </Typography.Paragraph>
+          </Space>
+        ) : (
+          <Space direction="vertical" size={16} style={{ width: '100%' }}>
+            <div>
+              <Typography.Text>生成数量</Typography.Text>
+              <InputNumber min={1} max={100} value={batchCount} onChange={(v) => setBatchCount(v || 10)} style={{ marginLeft: 12, width: 120 }} />
+            </div>
+            <div>
+              <Typography.Text>有效天数</Typography.Text>
+              <InputNumber min={7} max={365} value={batchDays} onChange={(v) => setBatchDays(v || 90)} style={{ marginLeft: 12, width: 120 }} addonAfter="天" />
+            </div>
+            <div>
+              <Typography.Text>班级分组</Typography.Text>
+              <Input value={batchGroupTag} onChange={(e) => setBatchGroupTag(e.target.value)} placeholder="可选，如 护理2班" style={{ marginLeft: 12, width: 180 }} />
+            </div>
+            <Alert message="生成后的授权码为未绑定状态，学生在小程序输入后自动绑定其微信账号。" type="info" showIcon />
+          </Space>
+        )}
+      </Modal>
     </SubjectAwarePageContainer>
   )
 }

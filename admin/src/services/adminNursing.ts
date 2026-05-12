@@ -76,3 +76,42 @@ export function extendStudentLicenseToken(id: string, extendDays: number) {
     body: JSON.stringify({ extendDays }),
   })
 }
+
+export function queryStudentDetail(openId: string) {
+  return adminFetch<Record<string, unknown>>(`/admin/students/${encodeURIComponent(openId)}`)
+}
+
+export function batchGenerateLicenseTokens(payload: { count: number; expiresDays?: number; subjectScope?: string; groupTag?: string }) {
+  return adminFetch<Array<{ code: string; expiresAt?: string }>>('/admin/license-tokens/batch-generate', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function queryAdminTrends(days = 7) {
+  return adminFetch<Array<{ date: string; practiceCount: number; correctRate: number; activeUsers: number }>>(`/admin/trends?days=${days}`)
+}
+
+export function queryAdminAlerts() {
+  return adminFetch<{
+    inactive: Array<{ openId: string; nickname: string; lastLoginAt: string | null }>
+    expiringTokens: Array<{ code: string; boundOpenId: string | null; expiresAt: string }>
+    lowAccuracyQuestions: Array<{ questionId: string; title: string; total: number; wrongRate: number }>
+  }>('/admin/alerts')
+}
+
+export function queryAdminExportStudents() {
+  return adminFetch<{ rows: Array<Record<string, unknown>> }>('/admin/export/students')
+}
+
+export function queryAdminExportMistakes() {
+  return adminFetch<{ rows: Array<Record<string, unknown>> }>('/admin/export/mistakes')
+}
+
+export function queryAdminGroups() {
+  return adminFetch<Array<{ groupTag: string; total: number; bound: number; unused: number }>>('/admin/groups')
+}
+
+export function queryAdminAuditLogs(limit = 50) {
+  return adminFetch<Array<{ id: string; action: string; target?: string; detail?: string; operator: string; createdAt: string }>>(`/admin/audit-logs?limit=${limit}`)
+}

@@ -1,112 +1,116 @@
-import { Image, Text, Video, View } from '@tarojs/components'
+import { Image, Text, View } from '@tarojs/components'
 import Taro, { useDidShow, usePullDownRefresh } from '@tarojs/taro'
-import { useQuery } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { getLicenseStatus, getVideoLessons } from '@/services/nursing'
 import { useAuthStore } from '@/stores/auth'
 import type { VideoLessonSummary } from '@/types/study'
-
-function VideoItem({ video, active, onPlay }: { video: VideoLessonSummary; active: boolean; onPlay: () => void }) {
-  const canPlay = Boolean(video.videoUrl)
-
-  function handleError() {
-    Taro.showToast({ title: '视频暂不可播放，请检查 COS 链接', icon: 'none' })
-  }
-
-  return (
-    <View style={{ marginTop: '20px', padding: '22px', borderRadius: '20px', background: '#fff', boxShadow: '0 10px 24px rgba(24,67,76,0.05)' }}>
-      {active && canPlay ? (
-        <Video
-          id={`video-${video.id}`}
-          src={video.videoUrl || ''}
-          poster={video.coverUrl || ''}
-          controls
-          autoplay
-          showFullscreenBtn
-          showPlayBtn
-          objectFit="contain"
-          onError={handleError}
-          style={{ width: '100%', height: '380px', borderRadius: '16px', overflow: 'hidden', background: '#101820' }}
-        />
-      ) : (
-        <View onTap={onPlay} style={{ height: '220px', borderRadius: '16px', overflow: 'hidden', background: '#e9f8f8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {video.coverUrl ? <Image src={video.coverUrl} mode="aspectFill" style={{ width: '100%', height: '220px' }} /> : <Text style={{ color: '#138b8f', fontSize: '28px', fontWeight: 700 }}>公开讲解</Text>}
-        </View>
-      )}
-      <View style={{ marginTop: '18px' }}>
-        <Text style={{ display: 'block', color: '#17364c', fontSize: '30px', fontWeight: '700', lineHeight: 1.45 }}>{video.title}</Text>
-        <Text style={{ display: 'block', marginTop: '8px', color: '#627577', fontSize: '24px' }}>{video.moduleName || '医护模块'} · {video.chapter || '小章节预留'} · {video.duration} 分钟</Text>
-        <View style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '14px' }}>
-          {video.knowledgePoints.map((point) => <Text key={point.id} style={{ padding: '6px 12px', borderRadius: '999px', background: '#eef8f8', color: '#138b8f', fontSize: '22px' }}>{point.name}</Text>)}
-          <Text style={{ padding: '6px 12px', borderRadius: '999px', background: canPlay ? '#eef8f0' : '#f6f6f6', color: canPlay ? '#2f8f52' : '#8a989a', fontSize: '22px' }}>{canPlay ? 'COS 链接可播放' : '暂无播放地址'}</Text>
-        </View>
-        <View onTap={canPlay ? onPlay : undefined} style={{ marginTop: '18px', height: '56px', borderRadius: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: canPlay ? '#138b8f' : '#d8e3e4' }}>
-          <Text style={{ color: '#fff', fontSize: '26px', fontWeight: '700' }}>{active && canPlay ? '正在播放' : canPlay ? '播放视频' : '待补充 COS 链接'}</Text>
-        </View>
-      </View>
-    </View>
-  )
-}
+import styles from './index.module.scss'
 
 export default function VideosPage() {
-  const [activeVideoId, setActiveVideoId] = useState<string>()
+  const [videos, setVideos] = useState<VideoLessonSummary[]>([])
+  const [authorized, setServerAuthorized] = useState(false)
+  const [checkingAuthorization, setCheckingAuthorization] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
+  const [loadError, setLoadError] = useState(false)
   const setAuthorized = useAuthStore((state) => state.setAuthorized)
-  const { data: licenseStatus, isLoading: isLicenseLoading } = useQuery({
-    queryKey: ['licenseStatus'],
-    queryFn: getLicenseStatus,
-  })
-  const authorized = Boolean(licenseStatus?.authorized)
-  const checkingAuthorization = !authorized && isLicenseLoading
-  const { data = [], refetch, isRefetching } = useQuery({
-    queryKey: ['videoLessons'],
-    queryFn: () => getVideoLessons(),
-    enabled: authorized,
-  })
 
-  useEffect(() => {
-    if (!licenseStatus?.authorized) return
-    const tokenCode = licenseStatus.authorization?.licenseToken?.code
-    if (tokenCode) setAuthorized(tokenCode, licenseStatus.authorization?.expiresAt)
-    refetch()
-  }, [licenseStatus, refetch, setAuthorized])
+  const loadVideos = useCallback(async () => {
+    setCheckingAuthorization(true)
+    setIsLoading(true)
+    setLoadError(false)
+    try {
+      const status = await getLicenseStatus()
+      setServerAuthorized(Boolean(status.authorized))
+      setCheckingAuthorization(false)
+      if (!status.authorized) {
+        setVideos([])
+        return
+      }
+      const tokenCode = status.authorization?.licenseToken?.code
+      if (tokenCode) setAuthorized(tokenCode, status.authorization?.expiresAt)
+      const list = await getVideoLessons()
+      setVideos(list)
+    } catch {
+      setLoadError(true)
+      setVideos([])
+      setCheckingAuthorization(false)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [setAuthorized])
 
   useDidShow(() => {
-    if (authorized) refetch()
+    loadVideos()
   })
 
   usePullDownRefresh(async () => {
-    if (authorized) await refetch()
+    await loadVideos()
     Taro.stopPullDownRefresh()
   })
 
   useEffect(() => {
-    if (!isRefetching) Taro.stopPullDownRefresh()
-  }, [isRefetching])
+    if (!isLoading) Taro.stopPullDownRefresh()
+  }, [isLoading])
+
+  function goPlayer(id: string) {
+    Taro.navigateTo({ url: `/pages/video-player/index?id=${id}` })
+  }
+
+  function goActivate() {
+    Taro.navigateTo({ url: '/pages/activate/index' })
+  }
 
   return (
-    <View style={{ minHeight: '100vh', padding: '32px 24px 72px', background: '#f7fbfb', boxSizing: 'border-box' }}>
-      <Text style={{ display: 'block', color: '#17364c', fontSize: '38px', fontWeight: '800' }}>公开讲解</Text>
-      <Text style={{ display: 'block', marginTop: '12px', color: '#627577', fontSize: '25px', lineHeight: 1.6 }}>{authorized ? '后台发布后，这里直接播放 COS 自定义域名视频链接。' : '当前仅展示公开讲解资源入口，激活后可查看已发布视频。'}</Text>
+    <View className={styles.page}>
+      <View className={styles.decoBlob1} />
+      <View className={styles.decoBlob2} />
+      <Text className={styles.pageTitle}>公开讲解</Text>
+
       {checkingAuthorization ? (
-        <View style={{ marginTop: '28px', padding: '30px 24px', borderRadius: '20px', background: '#fff', border: '1px solid #dbe8e9' }}>
-          <Text style={{ display: 'block', color: '#17364c', fontSize: '30px', fontWeight: '800' }}>正在确认授权</Text>
-          <Text style={{ display: 'block', marginTop: '10px', color: '#627577', fontSize: '24px', lineHeight: 1.6 }}>正在读取后端授权状态，请稍候。</Text>
+        <View className={styles.statusCard}>
+          <Text className={styles.statusTitle}>正在确认授权</Text>
+          <Text className={styles.statusDesc}>请稍候...</Text>
         </View>
       ) : !authorized ? (
-        <View style={{ marginTop: '28px', padding: '30px 24px', borderRadius: '20px', background: '#e6f3f3', border: '1px solid #cde6e7' }}>
-          <Text style={{ display: 'block', color: '#0f7f83', fontSize: '30px', fontWeight: '800' }}>公开视频已锁定</Text>
-          <Text style={{ display: 'block', marginTop: '10px', color: '#627577', fontSize: '24px', lineHeight: 1.6 }}>输入学习通行码后，可以按人体解剖学、生理学、临床医学概论、临床技能操作查看对应讲解。</Text>
-          <View onTap={() => Taro.navigateTo({ url: '/pages/activate/index' })} style={{ width: '170px', height: '56px', marginTop: '20px', borderRadius: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#138b8f' }}>
-            <Text style={{ color: '#fff', fontSize: '25px', fontWeight: '800' }}>去激活</Text>
+        <View className={styles.lockCard}>
+          <Text className={styles.lockTitle}>视频已锁定</Text>
+          <Text className={styles.lockDesc}>输入学习通行码后，可按模块查看对应讲解视频。</Text>
+          <View className={styles.lockButton} onTap={goActivate}>
+            <Text className={styles.lockButtonText}>去激活</Text>
           </View>
         </View>
-      ) : data.length === 0 ? (
-        <View style={{ marginTop: '40px', padding: '36px 24px', borderRadius: '20px', background: '#fff', textAlign: 'center' }}>
-          <Text style={{ color: '#8a989a', fontSize: '26px' }}>暂无已发布公开视频</Text>
+      ) : isLoading && videos.length === 0 ? (
+        <View className={styles.emptyCard}>
+          <Text className={styles.emptyText}>正在加载...</Text>
         </View>
-      ) : data.map((video) => (
-        <VideoItem key={video.id} video={video} active={activeVideoId === video.id} onPlay={() => setActiveVideoId(video.id)} />
-      ))}
+      ) : loadError ? (
+        <View className={styles.emptyCard}>
+          <Text className={styles.emptyText}>加载失败，请下拉重试</Text>
+        </View>
+      ) : videos.length === 0 ? (
+        <View className={styles.emptyCard}>
+          <Text className={styles.emptyText}>暂无已发布视频</Text>
+        </View>
+      ) : (
+        <View className={styles.videoGrid}>
+          {videos.map((video) => (
+            <View className={styles.videoCard} key={video.id} onTap={() => goPlayer(video.id)}>
+              <View className={styles.videoCover}>
+                {video.coverUrl
+                  ? <Image src={video.coverUrl} mode="aspectFill" className={styles.videoCoverImage} />
+                  : <Text className={styles.videoCoverText}>讲解</Text>}
+                <View className={styles.videoDuration}>
+                  <Text className={styles.videoDurationText}>{video.duration}min</Text>
+                </View>
+              </View>
+              <View className={styles.videoInfo}>
+                <Text className={styles.videoTitle}>{video.title}</Text>
+                <Text className={styles.videoMeta}>{video.moduleName || '医护模块'} · {video.chapter || '章节'}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   )
 }

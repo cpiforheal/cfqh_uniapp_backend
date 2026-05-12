@@ -12,6 +12,10 @@ export class CreatePracticeRecordDto {
   @IsString()
   submittedAnswer?: string
 
+  @IsOptional()
+  @IsString()
+  selectedOption?: string
+
   @IsBoolean()
   isCorrect!: boolean
 
@@ -26,4 +30,16 @@ export class CreatePracticeRecordDto {
   @IsOptional()
   @IsInt()
   totalCount?: number
+
+  @IsOptional()
+  @IsInt()
+  durationMs?: number
+
+  @IsOptional()
+  @IsString()
+  sessionId?: string
+
+  @IsOptional()
+  @IsString()
+  reviewFrequency?: string
 }

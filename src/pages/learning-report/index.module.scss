@@ -1,0 +1,211 @@
+@use '../../styles/theme.scss' as *;
+
+.page {
+  min-height: 100vh;
+  padding: $space-2xl 36px 120px;
+  background: $gradient-practice;
+  box-sizing: border-box;
+}
+
+.pageTitle {
+  display: block;
+  color: $color-text-primary;
+  font-size: $font-heading;
+  font-weight: $weight-bold;
+  margin-bottom: $space-md;
+}
+
+.loadingCard {
+  @include glass-card;
+  padding: $space-2xl;
+  text-align: center;
+}
+
+.loadingText {
+  color: $color-text-muted;
+  font-size: $font-body;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: $space-xs;
+  margin-bottom: $space-md;
+}
+
+.summaryItem {
+  @include glass-card;
+  padding: $space-sm $space-xs;
+  text-align: center;
+}
+
+.summaryValue {
+  display: block;
+  color: $color-primary-dark;
+  font-size: 34px;
+  font-weight: $weight-bold;
+}
+
+.summaryLabel {
+  display: block;
+  margin-top: 4px;
+  color: $color-text-muted;
+  font-size: 20px;
+  font-weight: $weight-normal;
+}
+// === 趋势图 ===
+
+.section {
+  @include glass-card;
+  padding: $space-md;
+  margin-bottom: $space-sm;
+}
+
+.sectionTitle {
+  display: block;
+  color: $color-text-primary;
+  font-size: $font-body;
+  font-weight: $weight-bold;
+  margin-bottom: $space-sm;
+}
+
+.trendChart {
+  display: flex;
+  align-items: flex-end;
+  height: 180px;
+  gap: $space-xs;
+}
+
+.trendBar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+}
+
+.trendRate {
+  color: $color-text-muted;
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+
+.trendFill {
+  width: 100%;
+  max-width: 48px;
+  border-radius: 6px 6px 0 0;
+  background: $gradient-btn-primary;
+  min-height: 8px;
+}
+
+.trendDate {
+  color: $color-text-muted;
+  font-size: 18px;
+  margin-top: 6px;
+}
+
+// === 模块进度 ===
+
+.moduleRow {
+  display: flex;
+  align-items: center;
+  gap: $space-xs;
+  padding: $space-xs 0;
+  border-bottom: 1px solid $color-divider;
+}
+
+.moduleRow:last-child {
+  border-bottom: none;
+}
+
+.moduleName {
+  width: 140px;
+  color: $color-text-regular;
+  font-size: 24px;
+  font-weight: $weight-medium;
+}
+
+.moduleBar {
+  flex: 1;
+  height: 12px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.moduleBarFill {
+  height: 100%;
+  border-radius: 6px;
+  background: $gradient-btn-primary;
+  transition: width 0.3s ease;
+}
+
+.moduleStats {
+  width: 160px;
+  text-align: right;
+  color: $color-text-muted;
+  font-size: 22px;
+}
+
+// === 薄弱章节 ===
+
+.weakRow {
+  display: flex;
+  align-items: center;
+  gap: $space-sm;
+  padding: $space-xs 0;
+}
+
+.weakIcon {
+  font-size: 28px;
+}
+
+.weakInfo {
+  flex: 1;
+}
+
+.weakChapter {
+  display: block;
+  color: $color-text-primary;
+  font-size: 26px;
+  font-weight: $weight-medium;
+}
+
+.weakMeta {
+  display: block;
+  color: $color-text-muted;
+  font-size: 20px;
+}
+
+.weakCount {
+  color: $color-danger;
+  font-size: 24px;
+  font-weight: $weight-bold;
+}
+
+// === 行动建议 ===
+
+.actionCard {
+  @include glass-card;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $space-md;
+  background: $color-primary-soft;
+  border-color: rgba($color-primary, 0.2);
+  @include tap-active;
+}
+
+.actionText {
+  flex: 1;
+  color: $color-primary-dark;
+  font-size: $font-body;
+  font-weight: $weight-medium;
+}
+
+.actionBtn {
+  color: $color-primary-dark;
+  font-size: 24px;
+  font-weight: $weight-bold;
+}

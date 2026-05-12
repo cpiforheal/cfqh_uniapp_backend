@@ -33,8 +33,10 @@ export interface PracticeQuestionSummary {
   estimatedMinutes: number
   completed?: boolean
   isMistake?: boolean
+  isFavorite?: boolean
   wrongCount?: number
   chapter?: string
+  orderIndex?: number
 }
 
 export interface ChapterQuestionGroup {

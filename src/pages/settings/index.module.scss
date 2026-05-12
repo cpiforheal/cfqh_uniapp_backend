@@ -1,0 +1,52 @@
+@use '../../styles/theme.scss' as *;
+
+.page {
+  min-height: 100vh;
+  padding: $space-2xl 36px 120px;
+  background: $gradient-practice;
+  box-sizing: border-box;
+}
+
+.section {
+  @include glass-card;
+  margin-bottom: $space-sm;
+  padding: $space-md $space-md 0;
+}
+
+.sectionTitle {
+  display: block;
+  color: $color-text-primary;
+  font-size: $font-body;
+  font-weight: $weight-bold;
+  margin-bottom: $space-sm;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $space-sm 0;
+  border-top: 1px solid $color-divider;
+}
+
+.itemLabel {
+  color: $color-text-regular;
+  font-size: 28px;
+  font-weight: $weight-normal;
+}
+
+.itemValue {
+  color: $color-text-muted;
+  font-size: 26px;
+  font-weight: $weight-normal;
+}
+
+.footer {
+  margin-top: $space-lg;
+  text-align: center;
+}
+
+.footerText {
+  color: $color-text-placeholder;
+  font-size: $font-hint;
+}

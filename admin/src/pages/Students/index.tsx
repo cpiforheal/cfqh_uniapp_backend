@@ -1,10 +1,10 @@
 import { ProColumns, ProTable, StatisticCard } from '@ant-design/pro-components'
-import { Alert, Button, Col, Empty, Input, Popconfirm, Progress, Row, Space, Tag, Typography, message } from 'antd'
+import { Alert, Button, Col, Empty, Input, Popconfirm, Progress, Row, Select, Space, Tag, Typography, message } from 'antd'
 import { useRef, useState } from 'react'
 import type { ActionType } from '@ant-design/pro-components'
 import { SubjectAwarePageContainer } from '@/components/SubjectAwarePageContainer'
-import { adminFetch } from '@/services/adminApi'
-import { disableStudentLicenseToken, extendStudentLicenseToken, issueStudentLicenseToken } from '@/services/adminNursing'
+import { adminFetch, describeAdminFetchError } from '@/services/adminApi'
+import { disableStudentLicenseToken, extendStudentLicenseToken, issueStudentLicenseToken, issueUnboundLicenseToken, queryAdminExportStudents } from '@/services/adminNursing'
 import type { AdminAnalytics, AdminAnalyticsStudentRow } from '@/types/content'
 
 async function queryAnalytics(): Promise<AdminAnalytics> {
@@ -39,19 +39,29 @@ function maskLicenseCode(code?: string | null) {
 export default function StudentsPage() {
   const actionRef = useRef<ActionType>()
   const [keyword, setKeyword] = useState('')
-
-  let latestOverview: AdminAnalytics['overview'] | undefined
-  let latestModuleStats: AdminAnalytics['moduleStats'] = []
-  let latestQuestionStats: AdminAnalytics['questionStats'] = []
+  const [rateFilter, setRateFilter] = useState<string>('all')
+  const [activeFilter, setActiveFilter] = useState<string>('all')
+  const [latestOverview, setLatestOverview] = useState<AdminAnalytics['overview']>()
+  const [latestModuleStats, setLatestModuleStats] = useState<AdminAnalytics['moduleStats']>([])
+  const [latestQuestionStats, setLatestQuestionStats] = useState<AdminAnalytics['questionStats']>([])
 
   const columns: ProColumns<AdminAnalyticsStudentRow>[] = [
     {
       title: '学生',
       dataIndex: 'nickname',
+      width: 280,
       render: (_, record) => (
-        <Space direction="vertical" size={0}>
-          <Typography.Text strong>{record.nickname}</Typography.Text>
-          <Typography.Text type="secondary" copyable={{ text: record.openId }}>{record.openId}</Typography.Text>
+        <Space direction="vertical" size={0} style={{ width: '100%', minWidth: 0 }}>
+          <Typography.Text strong style={{ display: 'block', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {record.nickname || '微信用户'}
+          </Typography.Text>
+          <Typography.Text
+            type="secondary"
+            copyable={{ text: record.openId }}
+            style={{ display: 'block', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}
+          >
+            {record.openId}
+          </Typography.Text>
         </Space>
       ),
     },
@@ -122,6 +132,7 @@ export default function StudentsPage() {
           >
             延期30天
           </Button>
+          <Button size="small" type="link" onClick={() => { window.location.hash = `#/nursing/students/${record.openId}` }}>查看</Button>
         </Space>
       ),
     },
@@ -133,8 +144,8 @@ export default function StudentsPage() {
         showIcon
         type="info"
         style={{ marginBottom: 12 }}
-        message="老师视角：搜索微信号后赋权"
-        description="一个微信账号只保留一个有效授权码。重复点击发码会返回现有码；如需延长使用时间，请使用延期操作。"
+        message="老师视角：优先发未绑定码，已登录学生可定向赋权"
+        description="本地测试或小范围内测时，可先生成未绑定码，学生首次在小程序激活时再绑定真实微信 openId。学生已出现在登录台账后，也可以在列表里按 openId 定向发码。"
       />
       <ProTable<AdminAnalyticsStudentRow>
         actionRef={actionRef}
@@ -143,34 +154,101 @@ export default function StudentsPage() {
         request={async () => {
           try {
             const analytics = await queryAnalytics()
-            latestOverview = analytics.overview
-            latestModuleStats = analytics.moduleStats
-            latestQuestionStats = analytics.questionStats
+            setLatestOverview(analytics.overview)
+            setLatestModuleStats(analytics.moduleStats)
+            setLatestQuestionStats(analytics.questionStats)
             let students = analytics.students
             if (keyword.trim()) {
               const k = keyword.trim().toLowerCase()
               students = students.filter((item) => item.openId.toLowerCase().includes(k) || item.nickname.toLowerCase().includes(k))
             }
+            if (rateFilter === 'low') students = students.filter((s) => s.correctRate < 60)
+            else if (rateFilter === 'mid') students = students.filter((s) => s.correctRate >= 60 && s.correctRate < 80)
+            else if (rateFilter === 'high') students = students.filter((s) => s.correctRate >= 80)
+            if (activeFilter === 'inactive') students = students.filter((s) => s.recentPracticeDays === 0)
+            else if (activeFilter === 'active') students = students.filter((s) => s.recentPracticeDays >= 3)
             return { data: students, success: true }
           } catch (error) {
             console.warn('query analytics failed', error)
-            message.error('学情数据加载失败，请检查后台令牌或后端服务')
+            message.error(describeAdminFetchError(error, '学情数据加载失败，请检查后台令牌或后端服务'))
             return { data: [], success: true }
           }
         }}
         search={false}
         size="small"
+        scroll={{ x: 1420 }}
         pagination={{ pageSize: 10, showSizeChanger: true }}
         locale={{ emptyText: <Empty description="暂无真实练习记录" /> }}
         headerTitle="学生练习明细"
         toolBarRender={() => [
+          <Select
+            key="rate"
+            value={rateFilter}
+            onChange={(v) => { setRateFilter(v); setTimeout(() => actionRef.current?.reload(), 0) }}
+            style={{ width: 130 }}
+            options={[
+              { label: '正确率: 全部', value: 'all' },
+              { label: '< 60% 薄弱', value: 'low' },
+              { label: '60-80%', value: 'mid' },
+              { label: '≥ 80% 优秀', value: 'high' },
+            ]}
+          />,
+          <Select
+            key="active"
+            value={activeFilter}
+            onChange={(v) => { setActiveFilter(v); setTimeout(() => actionRef.current?.reload(), 0) }}
+            style={{ width: 130 }}
+            options={[
+              { label: '活跃度: 全部', value: 'all' },
+              { label: '7天未活跃', value: 'inactive' },
+              { label: '活跃 ≥3天', value: 'active' },
+            ]}
+          />,
+          <Button
+            key="export"
+            onClick={async () => {
+              try {
+                const result = await queryAdminExportStudents()
+                const rows = result.rows || []
+                if (rows.length === 0) { message.info('暂无数据'); return }
+                const headers = Object.keys(rows[0])
+                const escapeCsv = (v: unknown) => { const s = String(v ?? ''); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
+                const csv = [headers.join(','), ...rows.map((r) => headers.map((h) => escapeCsv(r[h])).join(','))].join('\n')
+                const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `students_${new Date().toISOString().slice(0, 10)}.csv`
+                a.click()
+                URL.revokeObjectURL(url)
+                message.success('导出成功')
+              } catch { message.error('导出失败') }
+            }}
+          >
+            导出 CSV
+          </Button>,
+          <Button
+            key="issue-unused"
+            type="primary"
+            onClick={async () => {
+              try {
+                const result = await issueUnboundLicenseToken({ expiresDays: 30 })
+                message.success(`已生成未绑定码：${result.licenseToken.code}`)
+              } catch (error) {
+                console.warn('issue unbound token failed', error)
+                message.error(describeAdminFetchError(error, '未绑定授权码生成失败'))
+              }
+            }}
+          >
+            生成未绑定码
+          </Button>,
           <Input
             key="search"
             allowClear
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
             placeholder="搜索 openId 或 昵称"
-            style={{ width: 280 }}
+            style={{ width: 220 }}
           />,
           <Button key="reload" onClick={() => actionRef.current?.reload()}>查询</Button>,
         ]}

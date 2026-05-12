@@ -47,10 +47,11 @@ model User {
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
   authorization   UserAuthorization?
-  practiceRecords PracticeRecord[]
-  favorites       Favorite[]
-  mistakes        Mistake[]
-  loginLogs       UserLoginLog[]
+  practiceRecords  PracticeRecord[]
+  favorites        Favorite[]
+  mistakes         Mistake[]
+  loginLogs        UserLoginLog[]
+  videoPlayRecords VideoPlayRecord[] @relation("VideoPlayRecords")
 }
 
 model UserLoginLog {
@@ -80,6 +81,7 @@ model LicenseToken {
   subjectScope  SubjectCode         @default(nursing)
   resourceScope String              @default("all")
   maxBindCount  Int                 @default(1)
+  groupTag      String?
   boundUserId   String?
   boundOpenId   String?
   boundAt       DateTime?
@@ -133,6 +135,7 @@ model Question {
   status        ContentStatus @default(draft)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+  mistakes      Mistake[]
 }
 
 model CaseMaterial {
@@ -219,12 +222,20 @@ model PracticeRecord {
   userId          String
   questionId      String
   submittedAnswer String?
+  selectedOption  String?
   isCorrect       Boolean
   practiceMode    String   @default("daily")
   sequenceNo      Int?
   totalCount      Int?
+  durationMs      Int?
+  sessionId       String?
   createdAt       DateTime @default(now())
   user            User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([questionId])
+  @@index([sessionId])
+  @@index([createdAt])
 }
 
 model Favorite {
@@ -238,13 +249,52 @@ model Favorite {
 }
 
 model Mistake {
-  id         String   @id @default(cuid())
-  userId     String
-  questionId String
-  wrongCount Int      @default(1)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  user       User     @relation(fields: [userId], references: [id])
+  id             String    @id @default(cuid())
+  userId         String
+  questionId     String
+  wrongCount     Int       @default(1)
+  lastWrongAt    DateTime?
+  nextReviewAt   DateTime?
+  selectedOption String?
+  mastered       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  user           User      @relation(fields: [userId], references: [id])
+  question       Question  @relation(fields: [questionId], references: [id])
 
   @@unique([userId, questionId])
+  @@index([userId])
+  @@index([nextReviewAt])
+}
+
+model SystemConfig {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model VideoPlayRecord {
+  id              String   @id @default(cuid())
+  userId          String
+  videoId         String
+  watchDurationMs Int?
+  progress        Float?
+  createdAt       DateTime @default(now())
+  user            User     @relation("VideoPlayRecords", fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([videoId])
+}
+
+model AdminAuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  target    String?
+  detail    String?
+  operator  String   @default("admin")
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([action])
 }

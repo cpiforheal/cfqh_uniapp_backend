@@ -1,0 +1,131 @@
+@use '../../styles/theme.scss' as *;
+
+.page {
+  min-height: 100vh;
+  padding: 24px 36px 120px;
+  background: $gradient-practice;
+  box-sizing: border-box;
+}
+
+.tabRow {
+  display: flex;
+  gap: 0;
+  border-radius: $radius-md;
+  overflow: hidden;
+  background: $glass-bg;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid $glass-border;
+}
+
+.tab {
+  flex: 1;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tab:active {
+  opacity: 0.8;
+}
+
+.tabActive {
+  background: $color-primary;
+}
+
+.tabText {
+  color: $color-text-muted;
+  font-size: $font-body;
+  font-weight: 600;
+}
+
+.tabTextActive {
+  color: #ffffff;
+}
+
+.emptyCard {
+  @include glass-card;
+  margin-top: 36px;
+  padding: 60px 28px;
+  text-align: center;
+}
+
+.emptyText {
+  color: $color-text-muted;
+  font-size: $font-body;
+}
+
+.listCard {
+  @include glass-card;
+  margin-top: 24px;
+  padding: 8px 0;
+}
+
+.rankItem {
+  display: flex;
+  align-items: center;
+  padding: 20px 28px;
+  border-bottom: 1px solid $color-divider;
+}
+
+.rankItem:last-child {
+  border-bottom: none;
+}
+
+.rankIndex {
+  width: 48px;
+  flex-shrink: 0;
+  color: $color-text-muted;
+  font-size: 28px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.rankIndexTop {
+  font-size: 36px;
+}
+
+.rankInfo {
+  flex: 1;
+  margin-left: 16px;
+}
+
+.rankName {
+  color: $color-text-primary;
+  font-size: $font-body;
+  font-weight: 600;
+}
+
+.rankValue {
+  flex-shrink: 0;
+  color: $color-primary-dark;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.rankValueTop {
+  color: $color-primary-dark;
+  font-size: 32px;
+}
+
+.myRankBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 24px 36px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  background: $glass-bg-strong;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid $glass-border;
+}
+
+.myRankText {
+  display: block;
+  text-align: center;
+  color: $color-text-regular;
+  font-size: 24px;
+  font-weight: 400;
+}

@@ -236,12 +236,43 @@ export class NursingService {
     })
   }
 
-  async moduleQuestions(moduleCode: string) {
-    const questions = await this.prisma.question.findMany({
-      where: { subjectCode: SubjectCode.nursing, moduleCode, status: ContentStatus.published },
-      orderBy: [{ chapterSort: 'asc' }, { updatedAt: 'desc' }],
-    })
-    return questions.map((question) => this.serializeQuestion(question))
+  async moduleQuestions(moduleCode: string, openId?: string) {
+    const [questions, user] = await Promise.all([
+      this.prisma.question.findMany({
+        where: { subjectCode: SubjectCode.nursing, moduleCode, status: ContentStatus.published },
+        orderBy: [{ chapterSort: 'asc' }, { updatedAt: 'desc' }],
+      }),
+      this.getUserByOpenId(openId),
+    ])
+
+    if (!user || questions.length === 0) return questions.map((question) => this.serializeQuestion(question))
+
+    const questionIds = questions.map((question) => question.id)
+    const [records, favorites, mistakes] = await Promise.all([
+      this.prisma.practiceRecord.findMany({
+        where: { userId: user.id, questionId: { in: questionIds } },
+        select: { questionId: true },
+      }),
+      this.prisma.favorite.findMany({
+        where: { userId: user.id, questionId: { in: questionIds } },
+        select: { questionId: true },
+      }),
+      this.prisma.mistake.findMany({
+        where: { userId: user.id, questionId: { in: questionIds } },
+        select: { questionId: true, wrongCount: true },
+      }),
+    ])
+    const completedQuestionIds = new Set(records.map((record) => record.questionId))
+    const favoriteQuestionIds = new Set(favorites.map((favorite) => favorite.questionId))
+    const mistakeMap = new Map(mistakes.map((mistake) => [mistake.questionId, mistake.wrongCount]))
+
+    return questions.map((question) => ({
+      ...this.serializeQuestion(question),
+      completed: completedQuestionIds.has(question.id),
+      isFavorite: favoriteQuestionIds.has(question.id),
+      isMistake: mistakeMap.has(question.id),
+      wrongCount: mistakeMap.get(question.id) ?? 0,
+    }))
   }
 
   async moduleVideos(moduleCode: string) {
@@ -365,7 +396,7 @@ export class NursingService {
   }
 
   async practiceHome(openId?: string) {
-    const [dailyPractice, videos, confusingPoints, memoryTips, questions, user] = await Promise.all([
+    const [dailyPractice, videos, confusingPoints, memoryTips, questions, authorizedUser] = await Promise.all([
       this.dailyPractice(),
       this.videos(),
       this.confusingPoints(),
@@ -374,13 +405,14 @@ export class NursingService {
         where: { subjectCode: SubjectCode.nursing, status: ContentStatus.published },
         orderBy: [{ chapterSort: 'asc' }, { updatedAt: 'desc' }],
       }),
-      this.getUserByOpenId(openId),
+      this.getAuthorizedUserByOpenId(openId),
     ])
+    const user = authorizedUser
 
     const [records, mistakes] = user
       ? await Promise.all([
           this.prisma.practiceRecord.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' } }),
-          this.prisma.mistake.findMany({ where: { userId: user.id }, orderBy: { updatedAt: 'desc' }, take: 3 }),
+          this.prisma.mistake.findMany({ where: { userId: user.id, mastered: false }, orderBy: { wrongCount: 'desc' } }),
         ])
       : [[], []]
     const daily = dailyPractice[0] ?? null
@@ -394,17 +426,24 @@ export class NursingService {
         return question ? { ...question, wrongCount: mistake.wrongCount } : null
       })
       .filter((question): question is NonNullable<typeof question> => Boolean(question))
-    const recommendationSeeds = [
-      dailyQuestion,
-      ...questions.filter((question) => question.id !== continueQuestion?.id && question.id !== dailyQuestion?.id),
-    ].filter((question): question is NonNullable<typeof question> => Boolean(question))
+    const recommendationSeeds = (() => {
+      const chapterWeights = new Map<string, number>()
+      for (const m of mistakes) {
+        const q = questions.find((item) => item.id === m.questionId)
+        if (q?.chapter) chapterWeights.set(q.chapter, (chapterWeights.get(q.chapter) || 0) + m.wrongCount)
+      }
+      const doneIds = new Set(records.map((r) => r.questionId))
+      const undone = questions.filter((q) => !doneIds.has(q.id) && q.id !== continueQuestion?.id && q.id !== dailyQuestion?.id)
+      undone.sort((a, b) => (chapterWeights.get(b.chapter) || 0) - (chapterWeights.get(a.chapter) || 0))
+      return [dailyQuestion, ...undone].filter((q): q is NonNullable<typeof q> => Boolean(q))
+    })()
     const progressDone = new Set(records.map((record) => record.questionId)).size
     const progressTotal = questions.length
 
     return {
       subjectCode: 'nursing',
       subjectName: '医护大类',
-      authorization: user ? { status: 'authorized' } : { status: 'unknown' },
+      authorization: authorizedUser ? { status: 'authorized' } : { status: 'unauthorized' },
       progress: {
         done: progressDone,
         total: progressTotal,
@@ -414,7 +453,7 @@ export class NursingService {
       dailyPractice: daily,
       dailyQuestion: dailyQuestion ? this.serializeQuestion(dailyQuestion) : null,
       recommendedQuestions: recommendationSeeds.slice(0, 5).map((question) => this.serializeQuestion(question)),
-      recentMistakes: recentMistakes.map((question) => this.serializeQuestion(question)),
+      recentMistakes: recentMistakes.slice(0, 5).map((question) => this.serializeQuestion(question)),
       recommendedVideos: videos.slice(0, 2),
       confusingPoints: confusingPoints.slice(0, 3),
       memoryTips: memoryTips.slice(0, 3),
@@ -1142,6 +1181,351 @@ export class NursingService {
         knowledgeTags: question.knowledgeTags,
         status,
       },
+    })
+  }
+
+  // === 新增方法 ===
+
+  async getHomeConfig() {
+    const config = await this.prisma.systemConfig.findFirst({ where: { key: 'home_config' } }).catch(() => null)
+    if (!config?.value) return { notice: '', dailyQuote: '', examCountdown: 45, aboutText: '' }
+    try { return JSON.parse(config.value) } catch { return { notice: '', dailyQuote: '', examCountdown: 45, aboutText: '' } }
+  }
+
+  async saveHomeConfig(dto: Record<string, unknown>) {
+    const value = JSON.stringify({ notice: dto.notice || '', dailyQuote: dto.dailyQuote || '', examCountdown: dto.examCountdown ?? 45, aboutText: dto.aboutText || '' })
+    await this.prisma.systemConfig.upsert({ where: { key: 'home_config' }, create: { key: 'home_config', value }, update: { value } })
+    return { ok: true }
+  }
+
+  async getRanking(type: string, currentOpenId?: string) {
+    const users = await this.prisma.user.findMany({ select: { id: true, openId: true, nickname: true } })
+    const userIdToOpenId = new Map(users.map((u) => [u.id, u.openId]))
+    const openIdToNickname = new Map(users.map((u) => [u.openId, u.nickname || '医护同学']))
+
+    const records = await this.prisma.practiceRecord.groupBy({ by: ['userId'], _count: { id: true } })
+
+    let list: Array<{ openId: string; nickname: string; value: number }>
+
+    if (type === 'rate') {
+      const correctRecords = await this.prisma.practiceRecord.groupBy({ by: ['userId'], _count: { id: true }, where: { isCorrect: true } })
+      const correctMap = new Map(correctRecords.map((r) => [r.userId, r._count.id]))
+      list = records.map((r) => {
+        const oid = userIdToOpenId.get(r.userId) || ''
+        return { openId: oid, nickname: openIdToNickname.get(oid) || '医护同学', value: r._count.id > 0 ? Math.round((correctMap.get(r.userId) || 0) / r._count.id * 100) : 0 }
+      })
+    } else if (type === 'count') {
+      list = records.map((r) => {
+        const oid = userIdToOpenId.get(r.userId) || ''
+        return { openId: oid, nickname: openIdToNickname.get(oid) || '医护同学', value: r._count.id }
+      })
+    } else {
+      const allRecords = await this.prisma.practiceRecord.findMany({ select: { userId: true, createdAt: true } })
+      const dayMap = new Map<string, Set<string>>()
+      allRecords.forEach((r) => {
+        if (!dayMap.has(r.userId)) dayMap.set(r.userId, new Set())
+        dayMap.get(r.userId)!.add(r.createdAt.toISOString().slice(0, 10))
+      })
+      list = Array.from(dayMap.entries()).map(([userId, days]) => {
+        const oid = userIdToOpenId.get(userId) || ''
+        return { openId: oid, nickname: openIdToNickname.get(oid) || '医护同学', value: days.size }
+      })
+    }
+
+    list.sort((a, b) => b.value - a.value)
+    const top = list.slice(0, 50)
+    const myIndex = currentOpenId ? list.findIndex((item) => item.openId === currentOpenId) : -1
+    const me = myIndex >= 0 ? { rank: myIndex + 1, value: list[myIndex].value } : null
+    return { list: top, me }
+  }
+
+  async recordVideoPlay(openId: string | undefined, videoId: string) {
+    if (!openId || !videoId) return { ok: false }
+    const user = await this.prisma.user.findUnique({ where: { openId } })
+    if (!user) return { ok: false }
+    await this.prisma.videoPlayRecord.create({ data: { userId: user.id, videoId } })
+    return { ok: true }
+  }
+
+  async batchGenerateLicenseTokens(dto: { count: number; expiresDays?: number; subjectScope?: string; groupTag?: string }) {
+    const count = Math.min(Math.max(dto.count || 1, 1), 100)
+    const expiresDays = dto.expiresDays || 90
+    const expiresAt = new Date(Date.now() + expiresDays * 24 * 60 * 60 * 1000)
+    const tokens: Array<{ code: string; expiresAt: string }> = []
+
+    for (let i = 0; i < count; i++) {
+      const code = this.generateLicenseCode()
+      await this.prisma.licenseToken.create({
+        data: { code, subjectScope: SubjectCode.nursing, resourceScope: '医护题库、解析、案例材料、公开讲解', status: LicenseStatus.unused, expiresAt, maxBindCount: 1, groupTag: dto.groupTag || null },
+      })
+      tokens.push({ code, expiresAt: expiresAt.toISOString() })
+    }
+    return tokens
+  }
+
+  async getStudentDetail(openId: string) {
+    const user = await this.prisma.user.findUnique({ where: { openId }, include: { authorization: { include: { licenseToken: true } } } })
+    if (!user) throw new NotFoundException('学生不存在')
+
+    const records = await this.prisma.practiceRecord.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' } })
+    const mistakes = await this.prisma.mistake.findMany({ where: { userId: user.id }, include: { question: { select: { title: true, chapter: true } } }, orderBy: { updatedAt: 'desc' }, take: 20 })
+    const favorites = await this.prisma.favorite.count({ where: { userId: user.id } })
+
+    const totalRecords = records.length
+    const correctRecords = records.filter((r) => r.isCorrect).length
+    const correctRate = totalRecords > 0 ? Math.round(correctRecords / totalRecords * 100) : 0
+
+    const daySet = new Set(records.map((r) => r.createdAt.toISOString().slice(0, 10)))
+    const practiceDays = daySet.size
+
+    const today = new Date()
+    const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const recentRecords = records.filter((r) => r.createdAt >= sevenDaysAgo)
+    const recentDaySet = new Set(recentRecords.map((r) => r.createdAt.toISOString().slice(0, 10)))
+
+    const weeklyActivity: Array<{ date: string; count: number }> = []
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today.getTime() - i * 24 * 60 * 60 * 1000)
+      const dateStr = d.toISOString().slice(0, 10)
+      weeklyActivity.push({ date: dateStr, count: recentRecords.filter((r) => r.createdAt.toISOString().slice(0, 10) === dateStr).length })
+    }
+
+    const moduleMap = new Map<string, { completedQuestions: number; correct: number }>()
+    for (const r of records) {
+      const question = await this.prisma.question.findUnique({ where: { id: r.questionId }, select: { moduleCode: true } }).catch(() => null)
+      const mod = question?.moduleCode || 'unknown'
+      const current = moduleMap.get(mod) || { completedQuestions: 0, correct: 0 }
+      current.completedQuestions += 1
+      if (r.isCorrect) current.correct += 1
+      moduleMap.set(mod, current)
+    }
+
+    const moduleProgress = Array.from(moduleMap.entries()).map(([moduleCode, stats]) => ({
+      moduleCode,
+      moduleName: getNursingModule(moduleCode)?.moduleName || moduleCode,
+      totalQuestions: stats.completedQuestions,
+      completedQuestions: stats.completedQuestions,
+      correctRate: stats.completedQuestions > 0 ? Math.round(stats.correct / stats.completedQuestions * 100) : 0,
+    }))
+
+    const auth = user.authorization
+    const license = auth?.licenseToken
+
+    return {
+      userId: user.id,
+      openId: user.openId,
+      nickname: user.nickname || '医护同学',
+      avatarUrl: user.avatarUrl,
+      practiceCount: totalRecords,
+      correctRate,
+      mistakeCount: mistakes.length,
+      favoriteCount: favorites,
+      practiceDays,
+      recentPracticeDays: recentDaySet.size,
+      lastActiveAt: records[0]?.createdAt?.toISOString() || null,
+      licenseCode: license?.code || null,
+      licenseStatus: license?.status || null,
+      activatedAt: auth?.activatedAt?.toISOString() || null,
+      expiresAt: license?.expiresAt?.toISOString() || null,
+      moduleProgress,
+      recentMistakes: mistakes.map((m) => ({
+        questionId: m.questionId,
+        title: m.question?.title || '未知题目',
+        chapter: m.question?.chapter || '未知章节',
+        wrongCount: m.wrongCount,
+        lastWrongAt: m.updatedAt.toISOString(),
+      })),
+      weeklyActivity,
+    }
+  }
+
+  async adminTrends(days: number) {
+    const now = new Date()
+    const startDate = new Date(now)
+    startDate.setDate(now.getDate() - days + 1)
+    startDate.setHours(0, 0, 0, 0)
+
+    const records = await this.prisma.practiceRecord.findMany({
+      where: { createdAt: { gte: startDate } },
+      select: { createdAt: true, isCorrect: true, userId: true },
+    })
+
+    const dailyMap = new Map<string, { date: string; count: number; correct: number; activeUsers: Set<string> }>()
+    for (let i = 0; i < days; i++) {
+      const d = new Date(startDate)
+      d.setDate(startDate.getDate() + i)
+      const key = d.toISOString().slice(0, 10)
+      dailyMap.set(key, { date: key, count: 0, correct: 0, activeUsers: new Set() })
+    }
+
+    for (const r of records) {
+      const key = r.createdAt.toISOString().slice(0, 10)
+      const day = dailyMap.get(key)
+      if (!day) continue
+      day.count++
+      if (r.isCorrect) day.correct++
+      day.activeUsers.add(r.userId)
+    }
+
+    return Array.from(dailyMap.values()).map((d) => ({
+      date: d.date,
+      practiceCount: d.count,
+      correctRate: d.count > 0 ? Math.round((d.correct / d.count) * 100) : 0,
+      activeUsers: d.activeUsers.size,
+    }))
+  }
+
+  async adminAlerts() {
+    const now = new Date()
+    const threeDaysAgo = new Date(now)
+    threeDaysAgo.setDate(now.getDate() - 3)
+    const sevenDaysAgo = new Date(now)
+    sevenDaysAgo.setDate(now.getDate() - 7)
+    const fifteenDaysLater = new Date(now)
+    fifteenDaysLater.setDate(now.getDate() + 15)
+
+    const [inactiveUsers, expiringTokens, hardQuestions] = await Promise.all([
+      this.prisma.user.findMany({
+        where: {
+          authorization: { isNot: null },
+          practiceRecords: { none: { createdAt: { gte: threeDaysAgo } } },
+        },
+        select: { openId: true, nickname: true, lastLoginAt: true },
+      }),
+      this.prisma.licenseToken.findMany({
+        where: {
+          status: 'bound',
+          expiresAt: { gte: now, lte: fifteenDaysLater },
+        },
+        select: { code: true, boundOpenId: true, expiresAt: true },
+      }),
+      this.prisma.practiceRecord.groupBy({
+        by: ['questionId'],
+        where: { createdAt: { gte: sevenDaysAgo } },
+        _count: { id: true },
+      }),
+    ])
+
+    const recentRecords = await this.prisma.practiceRecord.findMany({
+      where: { createdAt: { gte: sevenDaysAgo } },
+      select: { questionId: true, isCorrect: true },
+    })
+    const questionStats = new Map<string, { total: number; wrong: number }>()
+    for (const r of recentRecords) {
+      const s = questionStats.get(r.questionId) ?? { total: 0, wrong: 0 }
+      s.total++
+      if (!r.isCorrect) s.wrong++
+      questionStats.set(r.questionId, s)
+    }
+    const lowAccuracyQuestions = Array.from(questionStats.entries())
+      .filter(([, s]) => s.total >= 5 && (s.wrong / s.total) > 0.6)
+      .map(([questionId, s]) => ({ questionId, total: s.total, wrongRate: Math.round((s.wrong / s.total) * 100) }))
+      .sort((a, b) => b.wrongRate - a.wrongRate)
+      .slice(0, 10)
+
+    const questionIds = lowAccuracyQuestions.map((q) => q.questionId)
+    const questionTitles = questionIds.length > 0
+      ? await this.prisma.question.findMany({ where: { id: { in: questionIds } }, select: { id: true, title: true } })
+      : []
+    const titleMap = new Map(questionTitles.map((q) => [q.id, q.title]))
+
+    return {
+      inactive: inactiveUsers.map((u) => ({
+        openId: u.openId,
+        nickname: u.nickname || '微信用户',
+        lastLoginAt: u.lastLoginAt?.toISOString() || null,
+      })),
+      expiringTokens: expiringTokens.map((t) => ({
+        code: t.code,
+        boundOpenId: t.boundOpenId,
+        expiresAt: t.expiresAt?.toISOString(),
+      })),
+      lowAccuracyQuestions: lowAccuracyQuestions.map((q) => ({
+        ...q,
+        title: titleMap.get(q.questionId) || q.questionId,
+      })),
+    }
+  }
+
+  async adminExportStudents() {
+    const [users, authorizations, records, mistakes] = await Promise.all([
+      this.prisma.user.findMany({ select: { id: true, openId: true, nickname: true } }),
+      this.prisma.userAuthorization.findMany({ include: { licenseToken: true } }),
+      this.prisma.practiceRecord.findMany({ select: { userId: true, isCorrect: true, createdAt: true } }),
+      this.prisma.mistake.findMany({ select: { userId: true, wrongCount: true } }),
+    ])
+
+    const authMap = new Map(authorizations.map((a) => [a.userId, a]))
+    const rows = users.map((user) => {
+      const userRecords = records.filter((r) => r.userId === user.id)
+      const userMistakes = mistakes.filter((m) => m.userId === user.id)
+      const correct = userRecords.filter((r) => r.isCorrect).length
+      const auth = authMap.get(user.id)
+      const practiceDays = new Set(userRecords.map((r) => r.createdAt.toISOString().slice(0, 10))).size
+
+      return {
+        openId: user.openId,
+        nickname: user.nickname || '微信用户',
+        practiceCount: userRecords.length,
+        correctRate: userRecords.length > 0 ? Math.round((correct / userRecords.length) * 100) : 0,
+        mistakeCount: userMistakes.reduce((s, m) => s + m.wrongCount, 0),
+        practiceDays,
+        licenseCode: auth?.licenseToken?.code || '',
+        licenseStatus: auth?.licenseToken?.status || '',
+        groupTag: (auth?.licenseToken as any)?.groupTag || '',
+        activatedAt: auth?.activatedAt?.toISOString().slice(0, 10) || '',
+        expiresAt: auth?.licenseToken?.expiresAt?.toISOString().slice(0, 10) || '',
+      }
+    })
+
+    return { rows: rows.sort((a, b) => b.practiceCount - a.practiceCount) }
+  }
+
+  async adminExportMistakes() {
+    const mistakes = await this.prisma.mistake.findMany({
+      where: { wrongCount: { gte: 1 } },
+      include: { question: { select: { id: true, title: true, chapter: true, moduleCode: true, moduleName: true } }, user: { select: { openId: true, nickname: true } } },
+      orderBy: { wrongCount: 'desc' },
+      take: 500,
+    })
+
+    return {
+      rows: mistakes.map((m) => ({
+        openId: m.user.openId,
+        nickname: m.user.nickname || '微信用户',
+        questionTitle: m.question.title,
+        chapter: m.question.chapter,
+        moduleName: m.question.moduleName,
+        wrongCount: m.wrongCount,
+        lastWrongAt: m.lastWrongAt?.toISOString().slice(0, 10) || m.updatedAt.toISOString().slice(0, 10),
+        mastered: m.mastered,
+      })),
+    }
+  }
+
+  async adminGroups() {
+    const tokens = await this.prisma.licenseToken.findMany({
+      where: { groupTag: { not: null } },
+      select: { groupTag: true, status: true, boundOpenId: true },
+    })
+
+    const groupMap = new Map<string, { total: number; bound: number; unused: number }>()
+    for (const t of tokens) {
+      const tag = t.groupTag!
+      const g = groupMap.get(tag) ?? { total: 0, bound: 0, unused: 0 }
+      g.total++
+      if (t.status === 'bound') g.bound++
+      if (t.status === 'unused') g.unused++
+      groupMap.set(tag, g)
+    }
+
+    return Array.from(groupMap.entries()).map(([groupTag, stats]) => ({ groupTag, ...stats }))
+  }
+
+  async adminAuditLogs(limit: number) {
+    return this.prisma.adminAuditLog.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(limit, 200),
     })
   }
 }

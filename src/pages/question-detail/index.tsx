@@ -1,12 +1,26 @@
 import { Text, View } from '@tarojs/components'
-import Taro from '@tarojs/taro'
-import { useQuery } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import Taro, { useDidShow } from '@tarojs/taro'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { addFavorite, getLicenseStatus, getQuestionDetail, submitPracticeRecord } from '@/services/nursing'
 import { useAuthStore } from '@/stores/auth'
+import { useSettingsStore } from '@/stores/settings'
+import type { QuestionDetail } from '@/types/study'
+import { cx } from '@/utils/classNames'
 import styles from './index.module.scss'
 
 type ReviewTabKey = 'analysis' | 'case' | 'confusing' | 'memory' | 'video'
+
+function normalizeAnswer(value: string) {
+  return value.split('').sort().join('')
+}
+
+function questionTypeText(type?: string) {
+  if (type === 'multiple_choice') return '多选题'
+  if (type === 'judgment') return '判断题'
+  if (type === 'short_answer') return '简答题'
+  if (type === 'case_analysis') return '案例分析题'
+  return '单选题'
+}
 
 export default function QuestionDetailPage() {
   const router = Taro.useRouter()
@@ -16,20 +30,45 @@ export default function QuestionDetailPage() {
   const [favorited, setFavorited] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [activeReviewTab, setActiveReviewTab] = useState<ReviewTabKey>('analysis')
+  const [authorized, setServerAuthorized] = useState(false)
+  const [checkingAuthorization, setCheckingAuthorization] = useState(true)
+  const [data, setData] = useState<QuestionDetail | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isError, setIsError] = useState(false)
 
   const setAuthorized = useAuthStore((state) => state.setAuthorized)
-  const { data: licenseStatus, isLoading: isLicenseLoading } = useQuery({
-    queryKey: ['licenseStatus'],
-    queryFn: getLicenseStatus,
-  })
-  const authorized = Boolean(licenseStatus?.authorized)
-  const checkingAuthorization = !authorized && isLicenseLoading
+  const { settings, hydrate: hydrateSettings } = useSettingsStore()
+  useEffect(() => { hydrateSettings() }, [hydrateSettings])
 
-  const { data, isError, isLoading } = useQuery({
-    queryKey: ['questionDetail', questionId],
-    queryFn: () => getQuestionDetail(questionId),
-    enabled: authorized,
-  })
+  const [timer, setTimer] = useState(0)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const startTimeRef = useRef<number>(0)
+
+  const loadQuestionDetail = useCallback(async () => {
+    setCheckingAuthorization(true)
+    setIsLoading(true)
+    setIsError(false)
+    try {
+      const status = await getLicenseStatus()
+      setServerAuthorized(Boolean(status.authorized))
+      setCheckingAuthorization(false)
+      if (!status.authorized) {
+        setData(null)
+        return
+      }
+
+      const tokenCode = status.authorization?.licenseToken?.code
+      if (tokenCode) setAuthorized(tokenCode, status.authorization?.expiresAt)
+      setData(await getQuestionDetail(questionId))
+    } catch (error) {
+      console.warn('question detail load failed', error)
+      setIsError(true)
+      setData(null)
+      setCheckingAuthorization(false)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [questionId, setAuthorized])
 
   useEffect(() => {
     setSelected('')
@@ -37,13 +76,55 @@ export default function QuestionDetailPage() {
     setFavorited(false)
     setSubmitting(false)
     setActiveReviewTab('analysis')
+    loadQuestionDetail()
   }, [questionId])
 
+  useDidShow(() => {
+    loadQuestionDetail()
+  })
+
   useEffect(() => {
-    if (!licenseStatus?.authorized) return
-    const tokenCode = licenseStatus.authorization?.licenseToken?.code
-    if (tokenCode) setAuthorized(tokenCode, licenseStatus.authorization?.expiresAt)
-  }, [licenseStatus, setAuthorized])
+    if (!data || submitted) return
+    startTimeRef.current = Date.now()
+    if (settings.timerEnabled) {
+      setTimer(settings.timerSeconds)
+      timerRef.current = setInterval(() => {
+        setTimer((t) => {
+          if (t <= 1) {
+            if (timerRef.current) clearInterval(timerRef.current)
+            return 0
+          }
+          return t - 1
+        })
+      }, 1000)
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  }, [data?.id, submitted])
+
+  const displayOptions = useMemo(() => {
+    if (!data?.options) return []
+    if (!settings.shuffleOptions) return data.options
+    const shuffled = [...data.options]
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+    }
+    return shuffled
+  }, [data?.id, settings.shuffleOptions])
+
+  function handleOptionTap(key: string) {
+    if (!data || submitted) return
+    if (data.type !== 'multiple_choice') {
+      setSelected(key)
+      return
+    }
+    setSelected((current) => {
+      const keys = new Set(current.split('').filter(Boolean))
+      if (keys.has(key)) keys.delete(key)
+      else keys.add(key)
+      return Array.from(keys).sort().join('')
+    })
+  }
 
   async function handleSubmit() {
     if (!data) return
@@ -53,13 +134,31 @@ export default function QuestionDetailPage() {
     }
     if (submitting) return
     setSubmitting(true)
-    const result = await submitPracticeRecord(data.id, selected === data.answer, selected, data.progress)
+    if (timerRef.current) clearInterval(timerRef.current)
+    const durationMs = startTimeRef.current ? Date.now() - startTimeRef.current : undefined
+    const isCorrect = normalizeAnswer(selected) === normalizeAnswer(data.answer)
+    const result = await submitPracticeRecord(data.id, isCorrect, selected, data.progress, { durationMs, selectedOption: selected, reviewFrequency: settings.reviewFrequency })
     setSubmitting(false)
     if (!result) {
       Taro.showToast({ title: '提交失败，请稍后重试', icon: 'none' })
       return
     }
     setSubmitted(true)
+
+    const dailyGoal = settings.dailyGoal || 20
+    const todayKey = `cfqh_daily_done_${new Date().toISOString().slice(0, 10)}`
+    const todayDone = (Number(Taro.getStorageSync(todayKey)) || 0) + 1
+    Taro.setStorageSync(todayKey, String(todayDone))
+    if (todayDone === dailyGoal) {
+      setTimeout(() => {
+        Taro.showModal({
+          title: '今日目标已完成',
+          content: `完成 ${todayDone} 题\n继续保持，明天见！`,
+          showCancel: false,
+          confirmText: '好的',
+        })
+      }, 500)
+    }
   }
 
   async function handleFavorite() {
@@ -123,13 +222,18 @@ export default function QuestionDetailPage() {
         <View className={styles.lockCard}>
           <Text className={styles.lockTitle}>{isError ? '题目加载失败' : '题目加载中'}</Text>
           <Text className={styles.lockDesc}>{isError ? '请确认通行码仍有效，或稍后下拉重试。' : '正在读取授权题目内容。'}</Text>
+          {isError && (
+            <View className={styles.lockButton} onTap={loadQuestionDetail}>
+              <Text className={styles.lockButtonText}>重新加载</Text>
+            </View>
+          )}
         </View>
       </View>
     )
   }
 
   const progressPercent = data.progress.total > 0 ? Math.round((data.progress.current / data.progress.total) * 100) : 0
-  const isCorrect = selected === data.answer
+  const isCorrect = normalizeAnswer(selected) === normalizeAnswer(data.answer)
   const reviewTabs = [
     { key: 'analysis' as const, label: '解析', visible: true },
     { key: 'case' as const, label: '案例', visible: Boolean(data.caseMaterial) },
@@ -150,17 +254,20 @@ export default function QuestionDetailPage() {
 
       <View className={styles.questionCard}>
         <View className={styles.tagRow}>
-          <Text className={styles.typeTag}>单选题</Text>
+          <Text className={styles.typeTag}>{questionTypeText(data.type)}</Text>
           <Text className={styles.levelText}>难度：{data.difficultyText}</Text>
         </View>
         <Text className={styles.questionTitle}>{data.title}</Text>
+        {settings.timerEnabled && !submitted && (
+          <Text className={styles.levelText} style={{ color: timer <= 10 ? '#f87171' : undefined }}>⏱ {timer}s</Text>
+        )}
         <View className={styles.options}>
-          {data.options.map((option) => {
-            const active = selected === option.key
-            const correct = submitted && option.key === data.answer
-            const wrong = submitted && active && option.key !== data.answer
+          {displayOptions.map((option) => {
+            const active = data.type === 'multiple_choice' ? selected.includes(option.key) : selected === option.key
+            const correct = submitted && data.answer.includes(option.key)
+            const wrong = submitted && active && !data.answer.includes(option.key)
             return (
-              <View key={option.key} className={`${styles.option} ${active ? styles.optionActive : ''} ${correct ? styles.optionCorrect : ''} ${wrong ? styles.optionWrong : ''}`} onTap={() => !submitted && setSelected(option.key)}>
+              <View key={option.key} className={cx(styles.option, active && styles.optionActive, correct && styles.optionCorrect, wrong && styles.optionWrong)} onTap={() => handleOptionTap(option.key)}>
                 <Text className={styles.optionKey}>{option.key}</Text>
                 <Text className={styles.optionText}>{option.content}</Text>
                 {correct && <Text className={styles.optionStatus}>正确</Text>}
@@ -179,7 +286,7 @@ export default function QuestionDetailPage() {
           </View>
           <View className={styles.answerCol}>
             <Text className={styles.answerLabel}>你的答案</Text>
-            <Text className={`${styles.answerValue} ${isCorrect ? styles.correctColor : styles.wrongColor}`}>{selected}</Text>
+            <Text className={cx(styles.answerValue, isCorrect ? styles.correctColor : styles.wrongColor)}>{selected}</Text>
           </View>
           <View className={styles.answerCol}>
             <Text className={styles.answerLabel}>正确答案</Text>
@@ -194,7 +301,7 @@ export default function QuestionDetailPage() {
             {reviewTabs.map((item) => (
               <View
                 key={item.key}
-                className={`${styles.reviewTab} ${currentReviewTab === item.key ? styles.reviewTabActive : ''}`}
+                className={cx(styles.reviewTab, currentReviewTab === item.key && styles.reviewTabActive)}
                 onTap={() => setActiveReviewTab(item.key)}
               >
                 <Text className={styles.reviewTabText}>{item.label}</Text>

@@ -1,11 +1,37 @@
 import { Text, View } from '@tarojs/components'
 import Taro, { useDidShow, usePullDownRefresh } from '@tarojs/taro'
 import { useQuery } from '@tanstack/react-query'
-import { useEffect } from 'react'
-import { getLicenseStatus, getLocalPracticeHomeOverview, getPracticeHomeOverview, isAuthorized } from '@/services/nursing'
+import { useEffect, useState } from 'react'
+import { getHomeConfig, getLicenseStatus, getLocalPracticeHomeOverview, getPracticeHomeOverview, getReviewToday, isAuthorized } from '@/services/nursing'
 import { useAuthStore } from '@/stores/auth'
+import { useSettingsStore } from '@/stores/settings'
 import type { PracticeQuestionSummary } from '@/types/study'
+import { cx } from '@/utils/classNames'
 import styles from './index.module.scss'
+
+const DAILY_QUOTES = [
+  '每天进步一点点，终将跨越那道线。',
+  '坚持的意义，在于回头时发现自己走了很远。',
+  '把每一道题当作一次对话，和知识交朋友。',
+  '今天多练一题，明天少一分焦虑。',
+  '不怕慢，只怕站。',
+  '错题不是失败，是下次做对的起点。',
+  '你比昨天的自己更强了。',
+  '护理的本质是关怀，学习的本质是重复。',
+  '量变终会引起质变，继续积累。',
+  '专注当下这一题，其他的交给时间。',
+  '每一次复盘都在缩短你和目标的距离。',
+  '别和别人比，和昨天的自己比。',
+  '刷题如磨刀，上了考场才知道锋利。',
+  '休息是为了走更远的路，但别停太久。',
+  '你选择了这条路，就值得走到底。',
+]
+
+function getDailyQuote(): string {
+  const today = new Date()
+  const dayIndex = (today.getFullYear() * 366 + (today.getMonth() + 1) * 31 + today.getDate()) % DAILY_QUOTES.length
+  return DAILY_QUOTES[dayIndex]
+}
 
 function isQuestion(question?: PracticeQuestionSummary): question is PracticeQuestionSummary {
   return Boolean(question)
@@ -13,14 +39,23 @@ function isQuestion(question?: PracticeQuestionSummary): question is PracticeQue
 
 export default function PracticePage() {
   const setAuthorized = useAuthStore((state) => state.setAuthorized)
+  const { settings, hydrate: hydrateSettings } = useSettingsStore()
+  useEffect(() => { hydrateSettings() }, [hydrateSettings])
   const { data: licenseStatus, isLoading: isLicenseLoading } = useQuery({
     queryKey: ['licenseStatus'],
     queryFn: getLicenseStatus,
+    staleTime: 30 * 1000,
   })
-  const { data, refetch, isRefetching, isError } = useQuery({
+  const { data: rawData, refetch, isRefetching, isError } = useQuery({
     queryKey: ['practiceHome'],
     queryFn: getPracticeHomeOverview,
     initialData: getLocalPracticeHomeOverview,
+  })
+  const data = rawData || getLocalPracticeHomeOverview()
+  const { data: homeConfig } = useQuery({
+    queryKey: ['homeConfig'],
+    queryFn: getHomeConfig,
+    staleTime: 5 * 60 * 1000,
   })
 
   useDidShow(() => {
@@ -31,8 +66,7 @@ export default function PracticePage() {
     if (!licenseStatus?.authorized) return
     const tokenCode = licenseStatus.authorization?.licenseToken?.code
     if (tokenCode) setAuthorized(tokenCode, licenseStatus.authorization?.expiresAt)
-    refetch()
-  }, [licenseStatus, refetch, setAuthorized])
+  }, [licenseStatus, setAuthorized])
 
   usePullDownRefresh(async () => {
     await refetch()
@@ -51,14 +85,48 @@ export default function PracticePage() {
   const recommendedQuestions = (data.recommendedQuestions?.length ? data.recommendedQuestions : [data.dailyQuestion])
     .filter(isQuestion)
     .filter((question, index, list) => list.findIndex((item) => item?.id === question?.id) === index)
-    .slice(0, 5)
+    .slice(0, 4)
+
+  const dailyGoal = settings.dailyGoal || 20
+  const dailyDone = progress?.done || 0
+
+  const weakChapter = (() => {
+    if (!data.recentMistakes?.length) return null
+    const chapters: Record<string, number> = {}
+    data.recentMistakes.forEach((m) => {
+      const ch = m.chapter || '未分类'
+      chapters[ch] = (chapters[ch] || 0) + (m.wrongCount || 1)
+    })
+    const sorted = Object.entries(chapters).sort((a, b) => b[1] - a[1])
+    return sorted[0] ? { name: sorted[0][0], count: sorted[0][1] } : null
+  })()
+
+  const examCountdown = (() => {
+    if (settings.examDate) {
+      const target = new Date(settings.examDate).getTime()
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const days = Math.ceil((target - today.getTime()) / (1000 * 60 * 60 * 24))
+      return days > 0 ? days : 0
+    }
+    return homeConfig?.examCountdown ?? 45
+  })()
+  const dailyQuote = homeConfig?.dailyQuote || getDailyQuote()
+  const noticeText = homeConfig?.notice || ''
+  const [mistakeOpen, setMistakeOpen] = useState(false)
+  const [reviewCount, setReviewCount] = useState(0)
 
   const remoteAuthorization = data.authorization
   const licenseAuthorization = licenseStatus
     ? { status: licenseStatus.authorized ? 'authorized' as const : 'unauthorized' as const, reason: licenseStatus.reason }
     : null
   const authorized = isAuthorized(remoteAuthorization) || isAuthorized(licenseAuthorization)
-  const checkingAuthorization = !authorized && (isLicenseLoading || isRefetching)
+  const checkingAuthorization = !authorized && isLicenseLoading && !isRefetching
+
+  useEffect(() => {
+    if (authorized) getReviewToday().then((r) => { if (r) setReviewCount(r.count) })
+  }, [authorized])
+
   const displayAuthorization = isAuthorized(remoteAuthorization)
     ? remoteAuthorization
     : isAuthorized(licenseAuthorization)
@@ -107,6 +175,8 @@ export default function PracticePage() {
   if (checkingAuthorization) {
     return (
       <View className={styles.page}>
+        <View className={styles.decoBlob1} />
+        <View className={styles.decoBlob2} />
         <View className={styles.lockInfoCard}>
           <Text className={styles.lockInfoTitle}>正在确认授权</Text>
           <Text className={styles.lockInfoText}>正在同步通行码状态和练习首页，请稍候。</Text>
@@ -118,6 +188,8 @@ export default function PracticePage() {
   if (!authorized) {
     return (
       <View className={styles.page}>
+        <View className={styles.decoBlob1} />
+        <View className={styles.decoBlob2} />
         <View className={styles.frameworkHero}>
           <Text className={styles.frameworkKicker}>专转本医护大类</Text>
           <Text className={styles.frameworkTitle}>题库、解析、错题与讲解统一收在这里</Text>
@@ -152,41 +224,46 @@ export default function PracticePage() {
 
   return (
     <View className={styles.page}>
+      <View className={styles.decoBlob1} />
+      <View className={styles.decoBlob2} />
+      <View className={styles.decoBlob3} />
       <View className={styles.hero}>
         <Text className={styles.brandText}>专转本医护大类</Text>
-        <Text className={styles.title}>今日医护练习</Text>
-        <Text className={styles.desc}>围绕题库目录、每日推荐、错题复盘同步推进，当前账号的练习记录会自动归档。</Text>
+        {noticeText ? (
+          <View className={styles.noticeBar}>
+            <Text className={styles.noticeText}>📢 {noticeText}</Text>
+          </View>
+        ) : (
+          <Text className={styles.title}>今日练习</Text>
+        )}
+        <Text className={styles.statsInline}>🎯 {dailyDone}/{dailyGoal} 今日目标 · 🔥 连续 {data.weeklyCompletedCount || 0} 天</Text>
       </View>
 
-      <View className={styles.overviewGrid}>
-        <View className={styles.overviewCard}>
-          <Text className={styles.overviewValue}>{progress?.done || 0}</Text>
-          <Text className={styles.overviewLabel}>今日已练</Text>
+      <View className={styles.capsuleRow}>
+        <View className={styles.capsule}>
+          <Text className={styles.capsuleValue}>{data.weeklyCompletedCount || 0}</Text>
+          <Text className={styles.capsuleUnit}> 天</Text>
+          <Text className={styles.capsuleLabel}>坚持</Text>
         </View>
-        <View className={styles.overviewCard}>
-          <Text className={styles.overviewValue}>{recommendedQuestions.length || 0}</Text>
-          <Text className={styles.overviewLabel}>推荐题</Text>
+        <View className={styles.capsule}>
+          <Text className={styles.capsuleValue}>{Math.round((progress?.done || 0) / Math.max(progress?.total || 1, 1) * 100)}</Text>
+          <Text className={styles.capsuleUnit}>%</Text>
+          <Text className={styles.capsuleLabel}>正确率</Text>
         </View>
-        <View className={styles.overviewCard}>
-          <Text className={styles.overviewValue}>{data.recentMistakes?.length || 0}</Text>
-          <Text className={styles.overviewLabel}>近期错题</Text>
+        <View className={styles.capsule}>
+          <Text className={styles.capsuleValueAccent}>{examCountdown}</Text>
+          <Text className={styles.capsuleUnit}> 天</Text>
+          <Text className={styles.capsuleLabel}>倒计时</Text>
         </View>
       </View>
 
-      <View className={styles.accountPanel}>
-        <View className={styles.accountLeft}>
-          <Text className={styles.accountTitle}>账号学习状态</Text>
-          <Text className={styles.accountDesc}>{expiresText || '通行码已激活，题库与进度已同步'}</Text>
-        </View>
-        <View className={styles.streakPill}>
-          <Text className={styles.streakNum}>{data.weeklyCompletedCount || 0}</Text>
-          <Text className={styles.streakLabel}>本周打卡</Text>
-        </View>
+      <View className={styles.quoteBar}>
+        <Text className={styles.quoteText}>{dailyQuote}</Text>
       </View>
 
       {showAuthBanner && (
         <View
-          className={`${styles.authBanner} ${isExpired ? styles.authBannerDanger : styles.authBannerWarning}`}
+          className={cx(styles.authBanner, isExpired ? styles.authBannerDanger : styles.authBannerWarning)}
           onTap={isExpired ? goActivate : goProfile}
         >
           <View className={styles.authBannerLeft}>
@@ -207,7 +284,7 @@ export default function PracticePage() {
 
       <View className={styles.heroCard} onTap={() => goQuestion(continueQuestionId)}>
         <View className={styles.heroTopRow}>
-          <Text className={styles.heroLabel}>继续练习</Text>
+          <Text className={styles.heroLabel}>📖 继续练习</Text>
           <Text className={styles.heroPercent}>{percent}%</Text>
         </View>
         <Text className={styles.heroTitle}>
@@ -221,61 +298,72 @@ export default function PracticePage() {
         </View>
         <View className={styles.progressFoot}>
           <Text className={styles.progressText}>已练 {progress?.done || 0} / {progress?.total || 0}</Text>
-          <Text className={styles.heroAction}>继续</Text>
+          <Text className={styles.heroAction}>继续 →</Text>
         </View>
       </View>
+
+      {reviewCount > 0 && (
+        <View className={styles.weakRow} onTap={() => Taro.navigateTo({ url: '/pages/question-bank-module/index?moduleCode=all&moduleName=%E9%94%99%E9%A2%98%E5%A4%8D%E5%88%B7' })}>
+          <Text className={styles.weakText}>📝 今天建议复刷 {reviewCount} 道错题</Text>
+          <Text className={styles.weakCta}>去复刷</Text>
+        </View>
+      )}
+
+      {weakChapter && (
+        <View className={styles.weakRow} onTap={goQuestionBank}>
+          <Text className={styles.weakText}>⚡「{weakChapter.name}」近期错 {weakChapter.count} 题</Text>
+          <Text className={styles.weakCta}>去练习</Text>
+        </View>
+      )}
 
       <View className={styles.sectionHeader}>
         <Text className={styles.sectionTitle}>今日推荐</Text>
         <Text className={styles.sectionMeta}>{recommendedQuestions.length || 0} 题</Text>
       </View>
       {recommendedQuestions.length > 0 ? (
-        <View className={styles.recommendList}>
+        <View className={styles.recommendGrid}>
           {recommendedQuestions.map((question, index) => (
-            <View className={styles.questionCard} key={question.id} onTap={() => goQuestion(question.id)}>
-              <View className={styles.questionIndex}>
-                <Text className={styles.questionIndexText}>{index + 1}</Text>
+            <View className={styles.recommendCard} key={question.id} onTap={() => goQuestion(question.id)}>
+              <View className={styles.recommendIndex}>
+                <Text className={styles.recommendIndexText}>{index + 1}</Text>
               </View>
-              <View className={styles.questionMain}>
-                <Text className={styles.questionTitle}>{question.title}</Text>
-                <Text className={styles.questionMeta}>
-                  {question.chapter || '医护基础'} · {question.difficultyText || '基础'}
-                </Text>
-              </View>
-              <Text className={styles.questionCta}>练习</Text>
+              <Text className={styles.recommendTitle}>{question.title}</Text>
+              <Text className={styles.recommendMeta}>{question.chapter || '医护基础'} · {question.difficultyText || '基础'}</Text>
             </View>
           ))}
         </View>
       ) : (
         <View className={styles.emptyCard}>
           <Text className={styles.emptyTitle}>{isError ? '题目加载失败' : '今日推荐同步中'}</Text>
-          <Text className={styles.emptyText}>{isError ? '请下拉刷新，或稍后重新进入首页' : '可以先进入题库目录，按课程章节选择练习内容。'}</Text>
+          <Text className={styles.emptyText}>{isError ? '请下拉刷新' : '可先进入题库按章节练习'}</Text>
           <View className={styles.emptyButton} onTap={goQuestionBank}>
-            <Text className={styles.emptyButtonText}>去题库练习</Text>
+            <Text className={styles.emptyButtonText}>去题库</Text>
           </View>
         </View>
       )}
 
       {data.recentMistakes?.length > 0 && (
-        <>
-          <View className={styles.sectionHeader}>
-            <Text className={styles.sectionTitle}>近期错题</Text>
-            <Text className={styles.sectionMeta}>共 {data.recentMistakes.length} 题</Text>
+        <View className={styles.mistakeSection}>
+          <View className={styles.sectionHeader} onTap={() => setMistakeOpen(!mistakeOpen)}>
+            <Text className={styles.sectionTitle}>📝 近期错题</Text>
+            <Text className={styles.sectionMeta}>{mistakeOpen ? '收起' : `共 ${data.recentMistakes.length} 题 >`}</Text>
           </View>
-          <View className={styles.mistakeList}>
-            {data.recentMistakes.slice(0, 3).map((item) => (
-              <View className={styles.mistakeItem} key={item.id} onTap={() => goQuestion(item.id)}>
-                <View className={styles.mistakeMain}>
-                  <Text className={styles.mistakeTitle}>{item.stem || item.title}</Text>
-                  <Text className={styles.mistakeChapter}>{item.chapter || '医护基础'}</Text>
+          {mistakeOpen && (
+            <View className={styles.mistakeList}>
+              {data.recentMistakes.slice(0, 5).map((item) => (
+                <View className={styles.mistakeItem} key={item.id} onTap={() => goQuestion(item.id)}>
+                  <View className={styles.mistakeMain}>
+                    <Text className={styles.mistakeTitle}>{item.stem || item.title}</Text>
+                    <Text className={styles.mistakeChapter}>{item.chapter || '医护基础'}</Text>
+                  </View>
+                  <View className={styles.mistakeBadge}>
+                    <Text className={styles.mistakeBadgeText}>错 {item.wrongCount || 1}</Text>
+                  </View>
                 </View>
-                <View className={styles.mistakeBadge}>
-                  <Text className={styles.mistakeBadgeText}>错 {item.wrongCount || 1}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        </>
+              ))}
+            </View>
+          )}
+        </View>
       )}
     </View>
   )

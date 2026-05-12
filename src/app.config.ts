@@ -7,12 +7,16 @@ export default defineAppConfig({
     'pages/activate/index',
     'pages/question-detail/index',
     'pages/question-bank-module/index',
+    'pages/video-player/index',
+    'pages/ranking/index',
+    'pages/settings/index',
+    'pages/learning-report/index',
   ],
   tabBar: {
-    color: '#627577',
-    selectedColor: '#138b8f',
+    color: '#a8a29e',
+    selectedColor: '#38c9a0',
     backgroundColor: '#ffffff',
-    borderStyle: 'black',
+    borderStyle: 'white',
     list: [
       { pagePath: 'pages/practice/index', text: '练习' },
       { pagePath: 'pages/question-bank/index', text: '题库' },
@@ -21,10 +25,10 @@ export default defineAppConfig({
     ],
   },
   window: {
-    backgroundTextStyle: 'light',
-    navigationBarBackgroundColor: '#f7fbfb',
+    backgroundTextStyle: 'dark',
+    navigationBarBackgroundColor: '#ecfdf5',
     navigationBarTitleText: '医护自学辅助',
     navigationBarTextStyle: 'black',
-    backgroundColor: '#f7fbfb',
+    backgroundColor: '#f6fcfa',
   },
 })

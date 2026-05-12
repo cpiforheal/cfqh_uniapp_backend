@@ -1,9 +1,12 @@
 import { Text, View } from '@tarojs/components'
 import Taro, { useDidShow, usePullDownRefresh } from '@tarojs/taro'
 import { useQuery } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { getLicenseStatus, getLocalQuestionBankOverview, getQuestionBankOverview, isAuthorized } from '@/services/nursing'
 import { useAuthStore } from '@/stores/auth'
+import type { QuestionBankOverview } from '@/types/study'
+import type { LicenseStatusResult } from '@/services/nursing'
+import { cx } from '@/utils/classNames'
 import styles from './index.module.scss'
 
 function progressWidth(rate: number) {
@@ -12,54 +15,73 @@ function progressWidth(rate: number) {
 
 export default function QuestionBankPage() {
   const setAuthorized = useAuthStore((state) => state.setAuthorized)
-  const { data: licenseStatus, isLoading: isLicenseLoading } = useQuery({
+  const [overview, setOverview] = useState<QuestionBankOverview>(() => getLocalQuestionBankOverview())
+  const [isCatalogLoading, setIsCatalogLoading] = useState(false)
+  const [catalogLoadError, setCatalogLoadError] = useState('')
+  const { data: licenseStatus, isLoading: isLicenseLoading, refetch: refetchLicenseStatus } = useQuery({
     queryKey: ['licenseStatus'],
     queryFn: getLicenseStatus,
   })
-  const { data, refetch, isFetching, isRefetching } = useQuery({
-    queryKey: ['questionBank'],
-    queryFn: getQuestionBankOverview,
-    initialData: getLocalQuestionBankOverview,
-  })
-  const overview = data || getLocalQuestionBankOverview()
-  const catalog = Array.isArray(overview.catalog) ? overview.catalog : []
-
-  const remoteAuthorized = isAuthorized(overview.authorization)
   const licenseAuthorization = licenseStatus
     ? { status: licenseStatus.authorized ? 'authorized' as const : 'unauthorized' as const, reason: licenseStatus.reason }
     : null
   const licenseAuthorized = isAuthorized(licenseAuthorization)
-  const authorized = licenseAuthorized || remoteAuthorized
-  const checkingAuthorization = !authorized && (isLicenseLoading || isFetching)
-  const catalogLooksLocked = authorized && !remoteAuthorized && catalog.length > 0 && catalog.every((item) => item.difficultyLabel === '待解锁' && (item.totalQuestions || 0) === 0)
-  const catalogFailed = authorized && !isFetching && (catalog.length === 0 || catalogLooksLocked)
+
+  const loadQuestionBank = useCallback(async (status?: LicenseStatusResult | null) => {
+    let effectiveStatus = status
+    setIsCatalogLoading(true)
+    setCatalogLoadError('')
+    try {
+      if (!effectiveStatus) effectiveStatus = await getLicenseStatus()
+      const nextOverview = await getQuestionBankOverview(effectiveStatus)
+      setOverview(nextOverview)
+      const tokenCode = effectiveStatus.authorization?.licenseToken?.code
+      if (effectiveStatus.authorized && tokenCode) setAuthorized(tokenCode, effectiveStatus.authorization?.expiresAt)
+    } catch (error) {
+      console.warn('question bank catalog load failed', error)
+      setCatalogLoadError('request_failed')
+      if (!effectiveStatus?.authorized) setOverview(getLocalQuestionBankOverview())
+    } finally {
+      setIsCatalogLoading(false)
+    }
+  }, [setAuthorized])
+
+  const catalog = Array.isArray(overview.catalog) ? overview.catalog : []
+
+  const authorized = licenseAuthorized
+  const checkingAuthorization = !authorized && (isLicenseLoading || isCatalogLoading)
+  const catalogLooksLocked = authorized && catalog.length > 0 && catalog.every((item) => item.locked || (item.difficultyLabel === '待解锁' && (item.totalQuestions || 0) === 0))
+  const catalogFailed = authorized && !isCatalogLoading && (Boolean(catalogLoadError) || catalog.length === 0 || catalogLooksLocked)
   const totalModules = catalog.length
   const totalQuestions = catalog.reduce((sum, item) => sum + (authorized ? item.totalQuestions || 0 : item.subChapterCount || 0), 0)
   const completedQuestions = catalog.reduce((sum, item) => sum + (authorized ? item.completedQuestions || 0 : 0), 0)
 
   useDidShow(() => {
-    refetch()
+    refetchLicenseStatus().then((result) => {
+      loadQuestionBank(result.data)
+    })
   })
 
   usePullDownRefresh(async () => {
-    await refetch()
+    const result = await refetchLicenseStatus()
+    await loadQuestionBank(result.data)
     Taro.stopPullDownRefresh()
   })
 
   useEffect(() => {
-    if (!isRefetching) {
+    if (!isCatalogLoading) {
       Taro.stopPullDownRefresh()
     }
-  }, [isRefetching])
+  }, [isCatalogLoading])
 
   useEffect(() => {
-    if (!licenseStatus?.authorized) return
-    const tokenCode = licenseStatus.authorization?.licenseToken?.code
-    if (tokenCode) setAuthorized(tokenCode, licenseStatus.authorization?.expiresAt)
-    if (!remoteAuthorized) {
-      refetch()
+    if (!licenseStatus) return
+    if (licenseStatus.authorized) {
+      const tokenCode = licenseStatus.authorization?.licenseToken?.code
+      if (tokenCode) setAuthorized(tokenCode, licenseStatus.authorization?.expiresAt)
     }
-  }, [licenseStatus, remoteAuthorized, refetch, setAuthorized])
+    loadQuestionBank(licenseStatus)
+  }, [licenseStatus, loadQuestionBank, setAuthorized])
 
   function goActivate() {
     Taro.navigateTo({ url: '/pages/activate/index' })
@@ -129,12 +151,14 @@ export default function QuestionBankPage() {
 
       {catalogLooksLocked ? (
         <View className={styles.loadingCard}>
-          <Text className={styles.loadingTitle}>{isFetching ? '正在加载完整题库' : '完整题库未加载'}</Text>
+          <Text className={styles.loadingTitle}>{isCatalogLoading ? '正在加载完整题库' : '题库数据异常'}</Text>
           <Text className={styles.loadingText}>
-            {isFetching ? '授权已确认，正在刷新章节目录和题量数据。' : '授权已经确认，但目录数据暂时没有返回。请确认本地后端可访问后重试。'}
+            {isCatalogLoading
+              ? '授权已确认，正在刷新章节目录和题量数据。'
+              : '授权已确认，但后端返回的目录为空或全部锁定。可能原因：openId 传递不一致、后端题目未发布、或数据库连接异常。'}
           </Text>
-          {!isFetching && (
-            <View className={styles.retryButton} onTap={() => refetch()}>
+          {!isCatalogLoading && (
+            <View className={styles.retryButton} onTap={() => loadQuestionBank()}>
               <Text className={styles.retryButtonText}>重新加载</Text>
             </View>
           )}
@@ -143,7 +167,7 @@ export default function QuestionBankPage() {
         <View className={styles.loadingCard}>
           <Text className={styles.loadingTitle}>题库目录加载失败</Text>
           <Text className={styles.loadingText}>授权已生效，但暂时没有拿到真实题库目录。请检查后端服务后重试。</Text>
-          <View className={styles.retryButton} onTap={() => refetch()}>
+          <View className={styles.retryButton} onTap={() => loadQuestionBank()}>
             <Text className={styles.retryButtonText}>重新加载</Text>
           </View>
         </View>
@@ -167,7 +191,7 @@ export default function QuestionBankPage() {
               </View>
               <View className={styles.metaRow}>
                 <Text className={styles.metaText}>{authorized ? `题量 ${item.totalQuestions} 题` : `小章节 ${item.subChapterCount || 0} 个`}</Text>
-                <Text className={`${styles.difficultyTag} ${item.difficultyLabel === '较难' ? styles.hardTag : ''}`}>难度 {item.difficultyLabel}</Text>
+                <Text className={cx(styles.difficultyTag, item.difficultyLabel === '较难' && styles.hardTag)}>难度 {item.difficultyLabel}</Text>
               </View>
               <View className={styles.progressRow}>
                 <Text className={styles.progressLabel}>

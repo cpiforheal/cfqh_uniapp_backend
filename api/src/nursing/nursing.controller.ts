@@ -41,8 +41,8 @@ export class NursingController {
 
   @UseGuards(LicenseGuard)
   @Get('modules/:moduleCode/questions')
-  moduleQuestions(@Param('moduleCode') moduleCode: string) {
-    return this.nursingService.moduleQuestions(moduleCode)
+  moduleQuestions(@Param('moduleCode') moduleCode: string, @Req() request: Request & { currentOpenId?: string }) {
+    return this.nursingService.moduleQuestions(moduleCode, request.currentOpenId)
   }
 
   @UseGuards(LicenseGuard)
@@ -239,5 +239,83 @@ export class NursingController {
   @Post('admin/daily-practice')
   upsertDailyPractice(@Body() dto: CreateDailyPracticeDto) {
     return this.nursingService.upsertDailyPractice(dto)
+  }
+
+  // === 新增接口 ===
+
+  @Get('home-config')
+  homeConfig() {
+    return this.nursingService.getHomeConfig()
+  }
+
+  @UseGuards(AdminGuard)
+  @Get('admin/home-config')
+  adminHomeConfig() {
+    return this.nursingService.getHomeConfig()
+  }
+
+  @UseGuards(AdminGuard)
+  @Post('admin/home-config')
+  saveHomeConfig(@Body() dto: Record<string, unknown>) {
+    return this.nursingService.saveHomeConfig(dto)
+  }
+
+  @Get('ranking')
+  ranking(@Query('type') type: string, @Req() request: Request) {
+    return this.nursingService.getRanking(type || 'days', resolveCurrentOpenId(request, this.configService))
+  }
+
+  @Post('video-play-records')
+  recordVideoPlay(@Body() dto: { openId?: string; videoId: string }, @Req() request: Request) {
+    const openId = dto.openId || resolveCurrentOpenId(request, this.configService)
+    return this.nursingService.recordVideoPlay(openId, dto.videoId)
+  }
+
+  @UseGuards(AdminGuard)
+  @Post('admin/license-tokens/batch-generate')
+  batchGenerateLicenseTokens(@Body() dto: { count: number; expiresDays?: number; subjectScope?: string; groupTag?: string }) {
+    return this.nursingService.batchGenerateLicenseTokens(dto)
+  }
+
+  @UseGuards(AdminGuard)
+  @Get('admin/students/:openId')
+  adminStudentDetail(@Param('openId') openId: string) {
+    return this.nursingService.getStudentDetail(openId)
+  }
+
+  @UseGuards(AdminGuard)
+  @Get('admin/trends')
+  adminTrends(@Query('days') days?: string) {
+    return this.nursingService.adminTrends(Number(days) || 7)
+  }
+
+  @UseGuards(AdminGuard)
+  @Get('admin/alerts')
+  adminAlerts() {
+    return this.nursingService.adminAlerts()
+  }
+
+  @UseGuards(AdminGuard)
+  @Get('admin/export/students')
+  adminExportStudents() {
+    return this.nursingService.adminExportStudents()
+  }
+
+  @UseGuards(AdminGuard)
+  @Get('admin/export/mistakes')
+  adminExportMistakes() {
+    return this.nursingService.adminExportMistakes()
+  }
+
+  @UseGuards(AdminGuard)
+  @Get('admin/groups')
+  adminGroups() {
+    return this.nursingService.adminGroups()
+  }
+
+  @UseGuards(AdminGuard)
+  @Get('admin/audit-logs')
+  adminAuditLogs(@Query('limit') limit?: string) {
+    return this.nursingService.adminAuditLogs(Number(limit) || 50)
   }
 }

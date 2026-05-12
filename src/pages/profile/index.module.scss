@@ -1,17 +1,30 @@
 @use '../../styles/theme.scss' as *;
 
 .page {
+  position: relative;
   min-height: 100vh;
-  padding: 56px 28px 120px;
-  background: $color-bg-page;
+  padding: $space-2xl 36px 140px;
+  background: $gradient-profile;
   box-sizing: border-box;
+  overflow: hidden;
+}
+
+.decoBlob1 {
+  @include deco-blob(rgba(167, 139, 250, 0.2), 320px, -60px, -80px);
+}
+
+.decoBlob2 {
+  @include deco-blob(rgba(92, 214, 180, 0.2), 260px, 500px, auto);
+  left: -100px;
 }
 
 .topBar {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
-  gap: 24px;
-  padding: 8px 4px 24px;
+  gap: $space-md;
+  padding: $space-xs 4px $space-md;
 }
 
 .avatar {
@@ -21,15 +34,15 @@
   align-items: center;
   justify-content: center;
   border-radius: 28px;
-  background: $color-primary-soft;
-  border: 1px solid $color-border;
+  background: linear-gradient(135deg, #ecfdf5, #f0fdfa);
+  box-shadow: 0 8px 24px rgba(56, 201, 160, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.8);
 }
 
 .avatarText {
   color: $color-primary;
-  font-size: 46px;
-  font-weight: 800;
-  letter-spacing: 2px;
+  font-size: $font-display;
+  font-weight: $weight-bold;
 }
 
 .avatarImage {
@@ -42,11 +55,35 @@
   flex: 1;
 }
 
+.authBtn {
+  flex-shrink: 0;
+  height: 56px;
+  padding: 0 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-pill;
+  background: $gradient-btn-primary;
+  box-shadow: $shadow-primary;
+  @include btn-active;
+}
+
+.authBtnDisabled {
+  background: rgba(92, 214, 180, 0.25);
+  box-shadow: none;
+}
+
+.authBtnText {
+  color: #ffffff;
+  font-size: $font-hint;
+  font-weight: $weight-medium;
+}
+
 .nickname {
   display: block;
-  color: #12334b;
-  font-size: 38px;
-  font-weight: 800;
+  color: $color-text-primary;
+  font-size: $font-heading;
+  font-weight: $weight-bold;
 }
 
 .statusPill {
@@ -60,62 +97,59 @@
 }
 
 .statusDot {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
 }
 
 .statusText {
-  font-size: 22px;
-  font-weight: 700;
+  font-size: $font-hint;
+  font-weight: $weight-medium;
 }
 
 .pill_success {
-  background: rgba(19, 139, 143, 0.12);
+  background: $color-success-soft;
 }
 
 .pill_success .statusDot {
-  background: #138b8f;
+  background: $color-success;
 }
 
 .pill_success .statusText {
-  color: #0f7f83;
+  color: $color-success;
 }
 
 .pill_warning {
-  background: rgba(242, 159, 61, 0.14);
+  background: $color-warning-soft;
 }
 
 .pill_warning .statusDot {
-  background: #f29f3d;
+  background: $color-warning;
 }
 
 .pill_warning .statusText {
-  color: #c9791b;
+  color: #b45309;
 }
 
 .pill_danger {
-  background: rgba(229, 90, 60, 0.12);
+  background: $color-danger-soft;
 }
 
 .pill_danger .statusDot {
-  background: #e55a3c;
+  background: $color-danger;
 }
 
 .pill_danger .statusText {
-  color: #c0432a;
+  color: $color-danger;
 }
 
 .loginCard {
+  @include glass-card;
   display: flex;
   align-items: center;
   gap: 20px;
   margin: 0 0 24px;
   padding: 24px;
-  border-radius: 18px;
-  background: #ffffff;
-  border: 1px solid #d8eded;
-  box-shadow: 0 10px 24px rgba(12, 79, 82, 0.05);
 }
 
 .loginTextBlock {
@@ -124,266 +158,136 @@
 
 .loginTitle {
   display: block;
-  color: #12334b;
-  font-size: 28px;
-  font-weight: 800;
+  color: $color-text-primary;
+  font-size: $font-body;
+  font-weight: $weight-medium;
 }
 
 .loginDesc {
   display: block;
-  margin-top: 8px;
-  color: #6d7e89;
-  font-size: 22px;
+  margin-top: $space-xs;
+  color: $color-text-muted;
+  font-size: $font-hint;
+  font-weight: $weight-normal;
   line-height: 1.45;
 }
 
 .loginBtn {
-  height: 64px;
+  height: 60px;
   padding: 0 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 32px;
-  background: $color-primary;
-}
-
-.loginBtn:active {
-  opacity: 0.82;
+  border-radius: $radius-pill;
+  background: $gradient-btn-primary;
+  box-shadow: $shadow-primary;
+  @include btn-active;
 }
 
 .loginBtnDisabled {
-  background: #c9d7d8;
+  background: rgba(107, 114, 128, 0.2);
+  box-shadow: none;
 }
 
 .loginBtnText {
   color: #ffffff;
-  font-size: 24px;
-  font-weight: 800;
+  font-size: $font-hint;
+  font-weight: $weight-medium;
 }
 
 .licenseCard {
-  position: relative;
-  overflow: hidden;
+  @include glass-card;
   margin-top: 8px;
-  padding: 32px 28px 24px;
-  border-radius: 18px;
-  background: #ecf6f6;
-  box-shadow: 0 16px 36px rgba(12, 79, 82, 0.06);
-  border: 1px solid #d8eded;
+  padding: 20px 24px;
 }
 
-.licenseCard::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 4px;
-  background: $color-primary;
-}
-
-.licenseHeader {
+.licenseRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.licenseLabel {
-  color: #6d7e89;
-  font-size: 24px;
-  font-weight: 600;
-  letter-spacing: 1px;
-}
-
-.copyBtn {
-  height: 48px;
-  padding: 0 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 24px;
-  background: rgba(19, 139, 143, 0.1);
-}
-
-.copyBtn:active {
-  opacity: 0.72;
-}
-
-.copyText {
-  color: #138b8f;
-  font-size: 24px;
-  font-weight: 700;
+  gap: 16px;
 }
 
 .licenseCode {
-  display: block;
-  margin-top: 22px;
-  color: #12334b;
-  font-size: 32px;
-  font-weight: 800;
-  letter-spacing: 0;
+  color: $color-text-primary;
+  font-size: 28px;
+  font-weight: $weight-bold;
   font-family: 'SF Mono', 'Menlo', monospace;
 }
 
 .licenseMeta {
-  display: flex;
-  gap: 48px;
-  margin-top: 26px;
-}
-
-.metaCol {
-  flex: none;
-}
-
-.metaLabel {
-  display: block;
-  color: #8b9ca1;
-  font-size: 22px;
-}
-
-.metaValue {
-  display: block;
-  margin-top: 8px;
-  color: #17364c;
-  font-size: 26px;
-  font-weight: 700;
-}
-
-.metaWarning {
-  color: #c9791b;
-}
-
-.warningBanner {
-  margin-top: 22px;
-  padding: 16px 20px;
-  border-radius: 12px;
-  background: rgba(242, 159, 61, 0.1);
-  border-left: 6px solid #f29f3d;
+  color: $color-text-muted;
+  font-size: $font-hint;
+  font-weight: $weight-normal;
 }
 
 .warningText {
-  color: #a86712;
-  font-size: 22px;
-  line-height: 1.5;
-}
-
-.scopeBlock {
-  margin-top: 26px;
-  padding-top: 24px;
-  border-top: 1px dashed #d9e5e5;
-}
-
-.scopeLabel {
   display: block;
-  color: #8b9ca1;
-  font-size: 22px;
-}
-
-.scopeText {
-  display: block;
-  margin-top: 10px;
-  color: #17364c;
-  font-size: 24px;
-  line-height: 1.6;
-}
-
-.bindTip {
-  display: block;
-  margin-top: 12px;
-  color: #8b9ca1;
-  font-size: 22px;
-}
-
-.licenseActions {
-  margin-top: 26px;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.replaceBtn {
-  height: 64px;
-  padding: 0 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #d9e5e5;
-  border-radius: 32px;
-  background: #ffffff;
-}
-
-.replaceBtn:active {
-  opacity: 0.72;
-}
-
-.replaceText {
-  color: #6d7e89;
-  font-size: 24px;
-  font-weight: 700;
+  margin-top: $space-xs;
+  color: #92400e;
+  font-size: $font-hint;
+  font-weight: $weight-medium;
 }
 
 .statGrid {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 18px;
-  margin-top: 28px;
+  gap: $space-sm;
+  margin-top: $space-md;
 }
 
 .statCard {
+  @include glass-card;
   padding: 26px 12px 22px;
-  border-radius: 18px;
-  background: #ffffff;
   text-align: center;
-  box-shadow: 0 10px 24px rgba(12, 79, 82, 0.05);
-}
-
-.statCard:active {
-  opacity: 0.72;
+  @include tap-active;
 }
 
 .statValue {
   display: block;
-  color: #12334b;
+  color: $color-primary;
   font-size: 34px;
-  font-weight: 700;
-  letter-spacing: 0;
+  font-weight: $weight-bold;
 }
 
 .statLabel {
   display: block;
-  margin-top: 10px;
-  color: #7b8b94;
-  font-size: 22px;
+  margin-top: $space-xs;
+  color: $color-text-muted;
+  font-size: $font-hint;
+  font-weight: $weight-normal;
 }
 
 .lockStatsCard {
+  @include glass-card;
   margin-top: 28px;
-  padding: 26px 24px;
-  border: 1px solid #cfe7e8;
-  border-radius: 18px;
-  background: #e6f3f3;
+  padding: 28px;
 }
 
 .lockStatsTitle {
   display: block;
-  color: #0f7f83;
-  font-size: 28px;
-  font-weight: 800;
+  color: $color-primary;
+  font-size: $font-body;
+  font-weight: $weight-medium;
 }
 
 .lockStatsText {
   display: block;
-  margin-top: 8px;
-  color: #627577;
-  font-size: 23px;
+  margin-top: $space-xs;
+  color: $color-text-muted;
+  font-size: $font-hint;
+  font-weight: $weight-normal;
   line-height: 1.55;
 }
 
 .menuCard {
-  margin-top: 24px;
+  position: relative;
+  z-index: 1;
+  @include glass-card-strong;
+  margin-top: $space-md;
   padding: 4px 28px;
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow: 0 10px 24px rgba(12, 79, 82, 0.05);
 }
 
 .menuItem {
@@ -391,7 +295,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #eef3f3;
+  border-bottom: 1px solid $color-divider;
 }
 
 .menuItem:last-child {
@@ -399,32 +303,94 @@
 }
 
 .menuItem:active {
-  opacity: 0.72;
+  transform: scale(0.98);
+  opacity: 0.92;
+  background: $color-primary-ghost;
+  transition: all 0.15s ease;
 }
 
 .menuTitle {
-  color: #17364c;
+  color: $color-text-primary;
   font-size: 28px;
-  font-weight: 600;
+  font-weight: $weight-medium;
 }
 
 .menuValue {
-  color: #8b9ca1;
+  color: $color-text-muted;
   font-size: 24px;
+  font-weight: $weight-normal;
 }
 
 .menuArrow {
-  color: #b9c6ca;
-  font-size: 32px;
+  color: $color-text-placeholder;
+  font-size: 28px;
+}
+
+// === 功能 Grid ===
+
+.sectionTitle {
+  position: relative;
+  z-index: 1;
+  margin-top: $space-lg;
+  padding: 0 4px;
+}
+
+.sectionTitleText {
+  color: $color-text-primary;
+  font-size: $font-title;
+  font-weight: $weight-bold;
+}
+
+.featureGrid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: $space-sm;
+  margin-top: $space-sm;
+}
+
+.featureCard {
+  @include glass-card;
+  padding: $space-md 12px 20px;
+  text-align: center;
+  @include tap-active;
+}
+
+.featureIcon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-sm;
+  background: $gradient-hero;
+}
+
+.featureIconText {
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: $weight-bold;
+}
+
+.featureLabel {
+  display: block;
+  color: $color-text-primary;
+  font-size: $font-hint;
+  font-weight: $weight-medium;
 }
 
 .footerTip {
   display: block;
-  margin-top: 36px;
+  margin-top: $space-xl;
   text-align: center;
-  color: #9aa9ae;
-  font-size: 22px;
+  color: $color-text-placeholder;
+  font-size: $font-hint;
+  font-weight: $weight-normal;
 }
+
+// === Modal ===
 
 .modalMask {
   position: fixed;
@@ -436,30 +402,31 @@
   align-items: center;
   justify-content: center;
   padding: 0 48px;
-  background: rgba(16, 34, 38, 0.48);
+  background: rgba(28, 25, 23, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   z-index: 1000;
 }
 
 .modalCard {
+  @include glass-overlay;
   width: 100%;
-  padding: 40px 32px 32px;
-  border-radius: 24px;
-  background: #ffffff;
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.18);
+  padding: $space-xl $space-lg $space-lg;
 }
 
 .modalTitle {
   display: block;
-  color: #12334b;
+  color: $color-text-primary;
   font-size: 34px;
-  font-weight: 800;
+  font-weight: $weight-bold;
 }
 
 .modalDesc {
   display: block;
-  margin-top: 14px;
-  color: #6d7e89;
+  margin-top: $space-sm;
+  color: $color-text-muted;
   font-size: 24px;
+  font-weight: $weight-normal;
   line-height: 1.6;
 }
 
@@ -469,51 +436,52 @@
   height: 96px;
   margin-top: 26px;
   padding: 0 24px;
-  border: 2px solid #e2eded;
-  border-radius: 16px;
-  background: #f8fbfb;
+  border: 2px solid rgba(92, 214, 180, 0.15);
+  border-radius: $radius-md;
+  background: rgba(255, 255, 255, 0.6);
 }
 
 .modalInputWrapError {
-  border-color: #e55a3c;
-  background: #fff6f3;
+  border-color: $color-danger;
+  background: rgba(239, 68, 68, 0.04);
 }
 
 .modalInput {
   flex: 1;
-  color: #12334b;
+  color: $color-text-primary;
   font-size: 32px;
-  font-weight: 800;
+  font-weight: $weight-bold;
   letter-spacing: 5px;
   font-family: 'SF Mono', 'Menlo', monospace;
 }
 
 .modalPlaceholder {
-  color: #a4b4b8;
-  font-size: 26px;
-  font-weight: 400;
+  color: $color-text-placeholder;
+  font-size: $font-body;
+  font-weight: $weight-normal;
   letter-spacing: 0;
 }
 
 .modalError {
   display: block;
-  margin-top: 12px;
-  color: #e55a3c;
-  font-size: 22px;
-  font-weight: 600;
+  margin-top: $space-xs;
+  color: $color-danger;
+  font-size: $font-hint;
+  font-weight: $weight-medium;
 }
 
 .modalHelper {
   display: block;
-  margin-top: 12px;
-  color: #8b9ca1;
-  font-size: 22px;
+  margin-top: $space-xs;
+  color: $color-text-muted;
+  font-size: $font-hint;
+  font-weight: $weight-normal;
 }
 
 .modalActions {
   display: flex;
-  gap: 18px;
-  margin-top: 30px;
+  gap: $space-sm;
+  margin-top: $space-md;
 }
 
 .modalCancel {
@@ -522,19 +490,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #d9e5e5;
-  border-radius: 44px;
-  background: #ffffff;
-}
-
-.modalCancel:active {
-  opacity: 0.72;
+  border: 1px solid rgba(92, 214, 180, 0.15);
+  border-radius: $radius-lg;
+  background: rgba(255, 255, 255, 0.6);
+  @include tap-active;
 }
 
 .modalCancelText {
-  color: #6d7e89;
+  color: $color-text-muted;
   font-size: 28px;
-  font-weight: 700;
+  font-weight: $weight-medium;
 }
 
 .modalConfirm {
@@ -543,23 +508,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 44px;
-  background: #138b8f;
-  box-shadow: 0 12px 24px rgba(15, 127, 131, 0.22);
-}
-
-.modalConfirm:active {
-  opacity: 0.85;
+  border-radius: $radius-lg;
+  background: $gradient-btn-primary;
+  box-shadow: $shadow-primary;
+  @include btn-active;
 }
 
 .modalConfirmDisabled {
-  background: #c9d7d8;
+  background: rgba(107, 114, 128, 0.15);
   box-shadow: none;
 }
 
 .modalConfirmText {
   color: #ffffff;
   font-size: 28px;
-  font-weight: 800;
-  letter-spacing: 1px;
+  font-weight: $weight-medium;
 }

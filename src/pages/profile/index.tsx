@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { activateLicense, getProfileOverview, isAuthorized, loginWithWechatProfile } from '@/services/nursing'
 import { useAuthStore } from '@/stores/auth'
+import { cx } from '@/utils/classNames'
 import styles from './index.module.scss'
 
 const CODE_PATTERN = /^(?:[A-Z0-9]{8}|NUR-[A-Z0-9]{8})$/
@@ -146,22 +147,22 @@ export default function ProfilePage() {
   }
 
   function goMistakes() {
-    Taro.switchTab({ url: '/pages/practice/index' })
+    Taro.navigateTo({ url: '/pages/question-bank-module/index?moduleCode=all&moduleName=%E6%88%91%E7%9A%84%E9%94%99%E9%A2%98' })
   }
 
   function goFavorites() {
-    Taro.switchTab({ url: '/pages/practice/index' })
+    Taro.navigateTo({ url: '/pages/question-bank-module/index?moduleCode=all&moduleName=%E6%88%91%E7%9A%84%E6%94%B6%E8%97%8F' })
   }
 
   async function handleWechatProfileLogin() {
     if (loginSubmitting) return
     setLoginSubmitting(true)
     try {
-      await loginWithWechatProfile()
-      Taro.showToast({ title: '已同步微信账号', icon: 'success' })
+      const result = await loginWithWechatProfile()
+      Taro.showToast({ title: result.cancelled ? '已保持当前账号' : '已同步微信账号', icon: result.cancelled ? 'none' : 'success' })
       refetch()
     } catch {
-      Taro.showToast({ title: '未完成授权，可稍后再试', icon: 'none' })
+      Taro.showToast({ title: '同步失败，请检查网络', icon: 'none' })
     } finally {
       setLoginSubmitting(false)
     }
@@ -169,6 +170,8 @@ export default function ProfilePage() {
 
   return (
     <View className={styles.page}>
+      <View className={styles.decoBlob1} />
+      <View className={styles.decoBlob2} />
       <View className={styles.topBar}>
         <View className={styles.avatar}>
           {data?.avatarUrl ? (
@@ -179,67 +182,31 @@ export default function ProfilePage() {
         </View>
         <View className={styles.userInfo}>
           <Text className={styles.nickname}>{data?.nickname || '医护同学'}</Text>
-          <View className={`${styles.statusPill} ${styles[`pill_${status.tone}`]}`}>
+          <View className={cx(styles.statusPill, styles[`pill_${status.tone}`])}>
             <View className={styles.statusDot} />
             <Text className={styles.statusText}>{status.text}</Text>
           </View>
         </View>
+        <View
+          className={cx(styles.authBtn, loginSubmitting && styles.authBtnDisabled)}
+          onTap={handleWechatProfileLogin}
+        >
+          <Text className={styles.authBtnText}>{loginSubmitting ? '同步中' : data?.avatarUrl ? '已授权' : '微信授权'}</Text>
+        </View>
       </View>
 
-      {!authorized && (
-        <View className={styles.loginCard}>
-          <View className={styles.loginTextBlock}>
-            <Text className={styles.loginTitle}>同步当前微信账号</Text>
-            <Text className={styles.loginDesc}>授权头像昵称后，后台台账可识别你的真机 openId，发码与激活会更稳定。</Text>
-          </View>
-          <View className={`${styles.loginBtn} ${loginSubmitting ? styles.loginBtnDisabled : ''}`} onTap={handleWechatProfileLogin}>
-            <Text className={styles.loginBtnText}>{loginSubmitting ? '同步中' : '微信授权'}</Text>
-          </View>
-        </View>
-      )}
-
       <View className={styles.licenseCard}>
-        <View className={styles.licenseHeader}>
-          <Text className={styles.licenseLabel}>学习通行码</Text>
-          <View className={styles.copyBtn} onTap={handleCopy}>
-            <Text className={styles.copyText}>复制</Text>
-          </View>
+        <View className={styles.licenseRow}>
+          <Text className={styles.licenseCode}>{maskToken(tokenCode)}</Text>
+          <Text className={styles.licenseMeta}>
+            {daysLeft != null && daysLeft > 0
+              ? `${daysLeft} 天后到期`
+              : expiresText || '已激活'}
+          </Text>
         </View>
-
-        <Text className={styles.licenseCode}>{maskToken(tokenCode)}</Text>
-
-        <View className={styles.licenseMeta}>
-          <View className={styles.metaCol}>
-            <Text className={styles.metaLabel}>有效期</Text>
-            <Text className={styles.metaValue}>{expiresText || '激活后自动生成'}</Text>
-          </View>
-          {daysLeft != null && daysLeft > 0 && (
-            <View className={styles.metaCol}>
-              <Text className={styles.metaLabel}>剩余</Text>
-              <Text className={`${styles.metaValue} ${daysLeft <= 15 ? styles.metaWarning : ''}`}>
-                {daysLeft} 天
-              </Text>
-            </View>
-          )}
-        </View>
-
         {daysLeft != null && daysLeft <= 15 && daysLeft > 0 && (
-          <View className={styles.warningBanner}>
-            <Text className={styles.warningText}>通行码即将到期，请提前联系发放方更换</Text>
-          </View>
+          <Text className={styles.warningText}>即将到期，请联系发放方更换</Text>
         )}
-
-        <View className={styles.scopeBlock}>
-          <Text className={styles.scopeLabel}>授权资源</Text>
-          <Text className={styles.scopeText}>{scopeText}</Text>
-          <Text className={styles.bindTip}>已绑定当前微信账号 不支持多账号共用</Text>
-        </View>
-
-        <View className={styles.licenseActions}>
-          <View className={styles.replaceBtn} onTap={openReplace}>
-            <Text className={styles.replaceText}>更换通行码</Text>
-          </View>
-        </View>
       </View>
 
       {authorized ? (
@@ -260,18 +227,55 @@ export default function ProfilePage() {
       ) : (
         <View className={styles.lockStatsCard}>
           <Text className={styles.lockStatsTitle}>练习数据待激活</Text>
-          <Text className={styles.lockStatsText}>累计练习、错题和收藏会在绑定通行码后按当前微信账号展示。</Text>
+          <Text className={styles.lockStatsText}>绑定通行码后展示学习数据。</Text>
         </View>
       )}
 
-      <View className={styles.menuCard}>
-        <View className={styles.menuItem} onTap={goMistakes}>
-          <Text className={styles.menuTitle}>我的错题</Text>
-          <Text className={styles.menuArrow}>{'>'}</Text>
+      <View className={styles.sectionTitle}>
+        <Text className={styles.sectionTitleText}>功能</Text>
+      </View>
+      <View className={styles.featureGrid}>
+        <View className={styles.featureCard} onTap={goMistakes}>
+          <View className={styles.featureIcon}>
+            <Text className={styles.featureIconText}>错</Text>
+          </View>
+          <Text className={styles.featureLabel}>我的错题</Text>
         </View>
-        <View className={styles.menuItem} onTap={goFavorites}>
-          <Text className={styles.menuTitle}>我的收藏</Text>
-          <Text className={styles.menuArrow}>{'>'}</Text>
+        <View className={styles.featureCard} onTap={goFavorites}>
+          <View className={styles.featureIcon}>
+            <Text className={styles.featureIconText}>收</Text>
+          </View>
+          <Text className={styles.featureLabel}>我的收藏</Text>
+        </View>
+        <View className={styles.featureCard} onTap={openReplace}>
+          <View className={styles.featureIcon}>
+            <Text className={styles.featureIconText}>换</Text>
+          </View>
+          <Text className={styles.featureLabel}>更换通行码</Text>
+        </View>
+        <View className={styles.featureCard} onTap={() => Taro.navigateTo({ url: '/pages/ranking/index' })}>
+          <View className={styles.featureIcon}>
+            <Text className={styles.featureIconText}>榜</Text>
+          </View>
+          <Text className={styles.featureLabel}>排行榜</Text>
+        </View>
+        <View className={styles.featureCard} onTap={() => Taro.navigateTo({ url: '/pages/learning-report/index' })}>
+          <View className={styles.featureIcon}>
+            <Text className={styles.featureIconText}>报</Text>
+          </View>
+          <Text className={styles.featureLabel}>学习报告</Text>
+        </View>
+        <View className={styles.featureCard} onTap={() => Taro.navigateTo({ url: '/pages/settings/index' })}>
+          <View className={styles.featureIcon}>
+            <Text className={styles.featureIconText}>设</Text>
+          </View>
+          <Text className={styles.featureLabel}>学习设置</Text>
+        </View>
+        <View className={styles.featureCard} onTap={() => Taro.showModal({ title: '关于', content: '专转本医护大类自学辅助\n仅供学习参考，不提供报名或购买服务。\n通行码由老师统一下发。', showCancel: false })}>
+          <View className={styles.featureIcon}>
+            <Text className={styles.featureIconText}>关</Text>
+          </View>
+          <Text className={styles.featureLabel}>关于</Text>
         </View>
       </View>
 
@@ -281,9 +285,9 @@ export default function ProfilePage() {
         <View className={styles.modalMask} onTap={closeReplace}>
           <View className={styles.modalCard} onTap={(e) => e.stopPropagation()}>
             <Text className={styles.modalTitle}>更换通行码</Text>
-            <Text className={styles.modalDesc}>输入新的通行码，校验通过后立即替换当前授权。新码必须绑定当前微信账号。</Text>
+            <Text className={styles.modalDesc}>输入新的通行码，校验通过后立即替换当前授权。</Text>
 
-            <View className={`${styles.modalInputWrap} ${replaceError ? styles.modalInputWrapError : ''}`}>
+            <View className={cx(styles.modalInputWrap, Boolean(replaceError) && styles.modalInputWrapError)}>
               <Input
                 className={styles.modalInput}
                 placeholder='8 位码或 NUR-完整授权码'
@@ -308,7 +312,7 @@ export default function ProfilePage() {
                 <Text className={styles.modalCancelText}>取消</Text>
               </View>
               <View
-                className={`${styles.modalConfirm} ${CODE_PATTERN.test(newCode) && !replaceSubmitting ? '' : styles.modalConfirmDisabled}`}
+                className={cx(styles.modalConfirm, (!CODE_PATTERN.test(newCode) || replaceSubmitting) && styles.modalConfirmDisabled)}
                 onTap={CODE_PATTERN.test(newCode) && !replaceSubmitting ? submitReplace : undefined}
               >
                 <Text className={styles.modalConfirmText}>

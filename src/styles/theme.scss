@@ -1,43 +1,167 @@
-// 主色
-$color-primary: #138b8f;
-$color-primary-dark: #0f7f83;
-$color-primary-soft: #e6f3f3;
-$color-primary-ghost: rgba(19, 139, 143, 0.1);
+// ===== 主色系（淡绿 · 医护职业风）=====
+$color-primary: #5cd6b4;
+$color-primary-dark: #38c9a0;
+$color-primary-soft: rgba(92, 214, 180, 0.1);
+$color-primary-ghost: rgba(92, 214, 180, 0.05);
 
-// 语义色
-$color-warning: #f29f3d;
-$color-warning-soft: rgba(242, 159, 61, 0.12);
-$color-danger: #e55a3c;
-$color-danger-soft: rgba(229, 90, 60, 0.12);
-$color-success: $color-primary;
+$color-accent: #a78bfa;
+$color-accent-soft: rgba(167, 139, 250, 0.1);
 
-// 文本
-$color-text-primary: #12334b;
-$color-text-regular: #17364c;
-$color-text-muted: #6d7e89;
-$color-text-placeholder: #a4b4b8;
+$color-secondary: #67e8f9;
+$color-secondary-soft: rgba(103, 232, 249, 0.08);
 
-// 背景
-$color-bg-page: #f4f8f8;
-$color-bg-card: #ffffff;
-$color-bg-subtle: #f8fbfb;
-$color-border: #e2eded;
-$color-divider: #eef3f3;
+$color-warm: #fbbf24;
+$color-warm-soft: rgba(251, 191, 36, 0.1);
 
-// 圆角
-$radius-sm: 12px;
-$radius-md: 18px;
-$radius-lg: 28px;
+// ===== 语义色 =====
+$color-warning: #fbbf24;
+$color-warning-soft: rgba(251, 191, 36, 0.1);
+$color-danger: #f87171;
+$color-danger-soft: rgba(248, 113, 113, 0.08);
+$color-success: #5cd6b4;
+$color-success-soft: rgba(92, 214, 180, 0.1);
+
+// ===== 文本 =====
+$color-text-primary: #0f2027;
+$color-text-regular: #1a3a42;
+$color-text-muted: #4a6b72;
+$color-text-placeholder: #8fb0b6;
+
+// ===== 背景 =====
+$color-bg-page: #f6fcfa;
+$color-bg-card: rgba(255, 255, 255, 0.6);
+$color-bg-subtle: rgba(255, 255, 255, 0.4);
+$color-border: rgba(255, 255, 255, 0.72);
+$color-divider: rgba(92, 214, 180, 0.08);
+
+// ===== 页面渐变 =====
+$gradient-practice: linear-gradient(160deg, #ecfdf5 0%, #f0fdfa 40%, #f5f3ff 100%);
+$gradient-videos: linear-gradient(160deg, #f0fdfa 0%, #ecfdf5 50%, #eff6ff 100%);
+$gradient-profile: linear-gradient(160deg, #ecfdf5 0%, #f0fdfa 40%, #fdf2f8 100%);
+
+// ===== 按钮/Hero 渐变 =====
+$gradient-btn-primary: linear-gradient(135deg, #5cd6b4 0%, #38c9a0 100%);
+$gradient-btn-accent: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+$gradient-hero: linear-gradient(135deg, #5cd6b4 0%, #38c9a0 50%, #2dd4a8 100%);
+
+// ===== 间距网格（8px 基准）=====
+$space-xs: 8px;
+$space-sm: 16px;
+$space-md: 24px;
+$space-lg: 32px;
+$space-xl: 40px;
+$space-2xl: 48px;
+$space-3xl: 64px;
+// ===== 毛玻璃三级体系 =====
+
+// Level 1: 内容卡片（主要容器）
+$glass-bg: rgba(255, 255, 255, 0.62);
+$glass-bg-strong: rgba(255, 255, 255, 0.78);
+$glass-border: rgba(255, 255, 255, 0.72);
+$glass-blur: 16px;
+$glass-shadow: 0 8px 32px rgba(56, 201, 160, 0.06);
+
+// Level 2: 控件级（tag、badge、轻量容器）
+$glass-control-bg: rgba(255, 255, 255, 0.4);
+$glass-control-border: rgba(255, 255, 255, 0.5);
+
+// Level 3: 浮层级（modal、toast）
+$glass-overlay-bg: rgba(255, 255, 255, 0.88);
+$glass-overlay-blur: 24px;
+
+// ===== 圆角 =====
+$radius-xs: 8px;
+$radius-sm: 14px;
+$radius-md: 22px;
+$radius-lg: 32px;
 $radius-pill: 999px;
 
-// 字号
+// ===== 字号 =====
 $font-hint: 22px;
 $font-body: 26px;
 $font-title: 30px;
 $font-heading: 38px;
 $font-display: 46px;
 
-// 阴影
-$shadow-card: 0 12px 28px rgba(12, 79, 82, 0.06);
-$shadow-float: 0 16px 36px rgba(12, 79, 82, 0.08);
-$shadow-primary: 0 14px 28px rgba(15, 127, 131, 0.24);
+// ===== 字重（严格三档）=====
+$weight-normal: 400;
+$weight-medium: 600;
+$weight-bold: 700;
+
+// ===== 阴影 =====
+$shadow-card: 0 8px 32px rgba(56, 201, 160, 0.06);
+$shadow-card-hover: 0 4px 16px rgba(56, 201, 160, 0.04);
+$shadow-float: 0 16px 40px rgba(56, 201, 160, 0.1);
+$shadow-primary: 0 12px 28px rgba(56, 201, 160, 0.2);
+
+// ===== Mixins =====
+
+// 内容卡片（Level 1）
+@mixin glass-card {
+  background: $glass-bg;
+  backdrop-filter: blur($glass-blur);
+  -webkit-backdrop-filter: blur($glass-blur);
+  border: 1px solid $glass-border;
+  border-top: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: $radius-md;
+  box-shadow: $glass-shadow;
+}
+
+// 强调卡片（Level 1 加强）
+@mixin glass-card-strong {
+  background: $glass-bg-strong;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-top: 1px solid rgba(255, 255, 255, 0.95);
+  border-radius: $radius-md;
+  box-shadow: $shadow-card;
+}
+
+// 控件容器（Level 2 — 不 blur，纯半透明）
+@mixin glass-control {
+  background: $glass-control-bg;
+  border: 1px solid $glass-control-border;
+  border-radius: $radius-sm;
+}
+
+// 浮层（Level 3）
+@mixin glass-overlay {
+  background: $glass-overlay-bg;
+  backdrop-filter: blur($glass-overlay-blur);
+  -webkit-backdrop-filter: blur($glass-overlay-blur);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: $radius-lg;
+  box-shadow: $shadow-float;
+}
+
+@mixin tap-active {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  &:active {
+    transform: scale(0.97);
+    opacity: 0.9;
+    box-shadow: $shadow-card-hover;
+  }
+}
+
+@mixin btn-active {
+  transition: transform 0.12s ease, opacity 0.12s ease;
+  &:active {
+    transform: scale(0.95);
+    opacity: 0.88;
+  }
+}
+
+// 背景装饰色块（用于页面 ::before/::after 或独立元素）
+@mixin deco-blob($color, $size: 400px, $top: -100px, $right: -80px) {
+  position: absolute;
+  width: $size;
+  height: $size;
+  border-radius: 50%;
+  background: $color;
+  filter: blur(80px);
+  opacity: 0.5;
+  top: $top;
+  right: $right;
+  pointer-events: none;
+}

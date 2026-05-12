@@ -96,7 +96,9 @@ interface ApiQuestion {
   analysis?: string
   progress?: { current: number; total: number }
   nextQuestionId?: string | null
+  completed?: boolean
   isFavorite?: boolean
+  isMistake?: boolean
   inMistakeBook?: boolean
   wrongCount?: number
   caseMaterial?: {
@@ -169,13 +171,27 @@ type LoginResponse = {
   avatarUrl?: string
 }
 
+export type LicenseStatusResult = {
+  authorized: boolean
+  reason?: string
+  authorization?: { expiresAt?: string; licenseToken?: { code?: string } }
+}
+
 function getOpenId() {
   if (MINIAPP_ENV.skipWechatLogin && MINIAPP_ENV.devOpenId) return MINIAPP_ENV.devOpenId
-  return Taro.getStorageSync<string>(OPEN_ID_STORAGE_KEY) || MINIAPP_ENV.devOpenId
+  return Taro.getStorageSync<string>(OPEN_ID_STORAGE_KEY) || ''
 }
 
 function getTokenCode() {
   return Taro.getStorageSync<string>(TOKEN_STORAGE_KEY) || MINIAPP_ENV.devTokenCode
+}
+
+function appendOpenIdQuery(path: string, openId?: string) {
+  if (!openId) return path
+  const [pathWithoutHash, hash = ''] = path.split('#')
+  if (/(^|[?&])openId=/.test(pathWithoutHash)) return path
+  const separator = pathWithoutHash.includes('?') ? '&' : '?'
+  return `${pathWithoutHash}${separator}openId=${encodeURIComponent(openId)}${hash ? `#${hash}` : ''}`
 }
 
 function getClientLoginPayload() {
@@ -207,6 +223,16 @@ async function getWechatLoginCode() {
   }
 }
 
+export class RequestError extends Error {
+  statusCode: number
+  reason: string
+  constructor(statusCode: number, reason: string, path: string) {
+    super(`[${statusCode}] ${reason} (${path})`)
+    this.statusCode = statusCode
+    this.reason = reason
+  }
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T | null> {
   try {
     if (MINIAPP_ENV.useCloudGateway && IS_WEAPP) {
@@ -223,10 +249,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
           data: options.data,
         },
       })
-      const result = response.result as { ok?: boolean; data?: T; error?: string } | T | undefined
+      const result = response.result as { ok?: boolean; data?: T; error?: string; statusCode?: number } | T | undefined
       if (result && typeof result === 'object' && 'ok' in result) {
         if (!result.ok) {
-          console.warn(`cloud request failed: ${path}`, result.error)
+          console.warn(`[cfqh-cloud] ${path} failed:`, result.error, result.statusCode ? `(${result.statusCode})` : '')
           return null
         }
         return result.data ?? null
@@ -235,11 +261,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     }
 
     const openId = getOpenId()
+    const requestPath = appendOpenIdQuery(path, openId)
     const apiBases = Array.from(new Set([MINIAPP_ENV.apiBase, ...MINIAPP_ENV.apiFallbackBases].filter(Boolean)))
     for (const apiBase of apiBases) {
       try {
+        if (MINIAPP_ENV.debugApi) console.info(`[cfqh-api] ${options.method || 'GET'} ${apiBase}${requestPath}`)
         const response = await Taro.request<T>({
-          url: `${apiBase}${path}`,
+          url: `${apiBase}${requestPath}`,
           method: options.method || 'GET',
           data: options.data,
           timeout: 8000,
@@ -249,15 +277,25 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
             ...(options.header || {}),
           },
         })
+        if (MINIAPP_ENV.debugApi) console.info(`[cfqh-api] ${response.statusCode} ${requestPath}`)
 
         if (response.statusCode >= 200 && response.statusCode < 300) {
           return response.data
         }
 
-        console.warn(`request failed: ${path}`, response.statusCode, response.data)
+        const reason = (response.data as any)?.message || (response.data as any)?.error || `HTTP ${response.statusCode}`
+        if (response.statusCode === 401) {
+          console.warn(`[cfqh-api] 401 Unauthorized: ${requestPath} — openId 可能无效或未传递`)
+        } else if (response.statusCode === 403) {
+          console.warn(`[cfqh-api] 403 Forbidden: ${requestPath} — 授权不足或 token 过期`)
+        } else if (response.statusCode === 404) {
+          console.warn(`[cfqh-api] 404 Not Found: ${requestPath} — 接口不存在或资源已删除`)
+        } else {
+          console.warn(`[cfqh-api] ${response.statusCode}: ${requestPath}`, reason)
+        }
         if (response.statusCode < 500) return null
       } catch (error) {
-        console.warn(`request failed: ${path}`, error)
+        console.warn(`request failed: ${requestPath}`, error)
       }
     }
 
@@ -270,7 +308,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
 async function loginMiniappUser(profile?: { nickname?: string; avatarUrl?: string }) {
   const openId = getOpenId()
-  if (MINIAPP_ENV.skipWechatLogin && openId) {
+  if (MINIAPP_ENV.skipWechatLogin && openId && !profile) {
     Taro.setStorageSync(OPEN_ID_STORAGE_KEY, openId)
     return openId
   }
@@ -299,16 +337,22 @@ export async function loginWithWechatProfile() {
   const getUserProfile = (Taro as unknown as { getUserProfile?: (options: { desc: string }) => Promise<{ userInfo?: { nickName?: string; avatarUrl?: string } }> }).getUserProfile
   if (!getUserProfile) {
     await loginMiniappUser()
-    return { ok: true, nickname: '微信用户', avatarUrl: '' }
+    return { ok: true, nickname: '微信用户', avatarUrl: '', profileSynced: false }
   }
 
-  const result = await getUserProfile({ desc: '用于展示学习账号头像昵称与同步登录台账' })
+  let result: { userInfo?: { nickName?: string; avatarUrl?: string } }
+  try {
+    result = await getUserProfile({ desc: '用于展示学习账号头像昵称与同步登录台账' })
+  } catch (error) {
+    await loginMiniappUser()
+    return { ok: false, cancelled: true, nickname: '微信用户', avatarUrl: '' }
+  }
   const userInfo = result.userInfo || {}
   await loginMiniappUser({
     nickname: userInfo.nickName || '微信用户',
     avatarUrl: userInfo.avatarUrl || '',
   })
-  return { ok: true, nickname: userInfo.nickName || '微信用户', avatarUrl: userInfo.avatarUrl || '' }
+  return { ok: true, nickname: userInfo.nickName || '微信用户', avatarUrl: userInfo.avatarUrl || '', profileSynced: true }
 }
 
 function difficultyText(difficulty?: string) {
@@ -337,6 +381,9 @@ function normalizeQuestion(input: Partial<ApiQuestion> & { knowledgePoints?: Kno
     knowledgePoints: input.knowledgePoints || mapKnowledgeTags(input.knowledgeTags),
     options: Array.isArray(input.options) ? input.options : undefined,
     estimatedMinutes: input.estimatedMinutes || 5,
+    completed: Boolean(input.completed),
+    isFavorite: Boolean(input.isFavorite),
+    isMistake: Boolean(input.isMistake || input.inMistakeBook || (input.wrongCount && input.wrongCount > 0)),
     wrongCount: input.wrongCount || 0,
     chapter: input.chapter,
   }
@@ -359,7 +406,7 @@ function normalizeVideo(item: ApiVideo): VideoLessonSummary {
   }
 }
 
-function normalizeAuthorization(result?: { authorized?: boolean; reason?: string; authorization?: { expiresAt?: string; licenseToken?: { code?: string } } } | null): AuthorizationInfo {
+function normalizeAuthorization(result?: LicenseStatusResult | null): AuthorizationInfo {
   const authorized = Boolean(result?.authorized)
   return {
     status: authorized ? 'authorized' : 'unauthorized',
@@ -372,7 +419,7 @@ function normalizeAuthorization(result?: { authorized?: boolean; reason?: string
 
 export async function activateLicense(code: string) {
   const openId = await ensureLogin()
-  const result = await request<{ authorized: boolean; reason?: string; authorization?: { expiresAt?: string; licenseToken?: { code?: string } } }>('/license/activate', {
+  const result = await request<LicenseStatusResult>('/license/activate', {
     method: 'POST',
     data: { ...(openId ? { openId } : {}), code },
   })
@@ -408,7 +455,7 @@ export function getLocalQuestionDetail(id?: string): QuestionDetail {
 export async function getLicenseStatus() {
   const openId = await ensureLogin()
   const query = openId ? `?openId=${encodeURIComponent(openId)}` : ''
-  const result = await request<{ authorized: boolean; reason?: string; authorization?: { expiresAt?: string; licenseToken?: { code?: string } } }>(`/license/status${query}`)
+  const result = await request<LicenseStatusResult>(`/license/status${query}`)
   return result || { authorized: false, reason: 'request_failed' }
 }
 
@@ -467,25 +514,39 @@ export async function getPracticeHomeOverview(): Promise<PracticeHomeOverview> {
   }
 }
 
-export async function getQuestionBankOverview(): Promise<QuestionBankOverview> {
-  const licenseStatus = await getLicenseStatus()
+export async function getQuestionBankOverview(knownLicenseStatus?: LicenseStatusResult | null): Promise<QuestionBankOverview> {
+  const licenseStatus = knownLicenseStatus || await getLicenseStatus()
+  const catalog = await request<QuestionCatalogItem[]>('/catalog')
+
   if (!licenseStatus.authorized) {
     return {
       ...getLockedQuestionBankOverview(),
       authorization: normalizeAuthorization(licenseStatus),
+      catalog: Array.isArray(catalog) && catalog.length > 0 ? catalog.map((item) => ({
+        ...item,
+        locked: true,
+        totalQuestions: 0,
+        totalVideos: 0,
+        completedQuestions: 0,
+        completionRate: 0,
+        difficultyLabel: '待解锁',
+        iconText: item.iconText || '题',
+      })) : getLockedQuestionBankOverview().catalog,
     }
   }
 
   const authorization = normalizeAuthorization(licenseStatus)
 
-  const catalog = await request<QuestionCatalogItem[]>('/catalog')
-  if (!catalog || catalog.length === 0) {
+  const catalogLockedByServer = Array.isArray(catalog) && catalog.length > 0 && catalog.every((item) => Boolean(item.locked))
+  if (!catalog || catalog.length === 0 || catalogLockedByServer) {
+    console.warn('[QuestionBank] authorized but catalog empty/locked — possible openId mismatch or backend issue', { authorized: licenseStatus.authorized, catalogLength: catalog?.length, allLocked: catalogLockedByServer })
     return {
       ...questionBankMock,
       authorization,
-      catalog: [],
+      catalog: catalog?.length ? catalog.map((item) => ({ ...item, locked: true, iconText: item.iconText || '题' })) : [],
       questions: [],
-    }
+      _diagnostic: 'authorized_but_catalog_unavailable',
+    } as QuestionBankOverview
   }
 
   return {
@@ -571,7 +632,41 @@ export async function getProfileOverview(): Promise<ProfileOverview> {
   }
 }
 
-export async function submitPracticeRecord(questionId: string, isCorrect: boolean, submittedAnswer?: string, progress?: { current?: number; total?: number }) {
+export async function getMyMistakes() {
+  return request<Array<{ id: string; questionId: string; wrongCount: number; lastWrongAt?: string; question?: { id: string; title: string; chapter?: string; moduleName?: string } }>>('/mistakes')
+}
+
+export async function getMyFavorites() {
+  return request<Array<{ id: string; questionId: string; question?: { id: string; title: string; chapter?: string; moduleName?: string } }>>('/favorites')
+}
+
+export async function removeFavorite(questionId: string) {
+  return request(`/favorites?questionId=${questionId}`, { method: 'DELETE' })
+}
+
+export async function getMyReport() {
+  return request<{ totalPractice: number; correctRate: number; practiceDays: number; uniqueQuestions: number; mistakeCount: number; favoriteCount: number; weeklyActiveDays: number; weeklyPracticeCount: number }>('/my/report')
+}
+
+export async function getReviewToday() {
+  return request<{ count: number; questions: Array<{ id: string; title: string; chapter?: string; moduleName?: string; wrongCount: number }> }>('/my/review-today')
+}
+
+export interface LearningReportData {
+  summary: { totalPractice: number; correctRate: number; practiceDays: number; weeklyCount: number; weeklyDays: number; mistakeCount: number; favoriteCount: number }
+  trend: Array<{ date: string; count: number; correctRate: number }>
+  moduleProgress: Array<{ moduleCode: string; moduleName: string; totalQuestions: number; doneQuestions: number; completionRate: number; correctRate: number }>
+  weakChapters: Array<{ chapter: string; moduleName: string; count: number }>
+  reviewCount: number
+  recommendation: string
+  recommendAction: string
+}
+
+export async function getLearningReport(range: '7d' | '30d' | 'all' = '7d') {
+  return request<LearningReportData>(`/my/learning-report?range=${range}`)
+}
+
+export async function submitPracticeRecord(questionId: string, isCorrect: boolean, submittedAnswer?: string, progress?: { current?: number; total?: number }, extra?: { durationMs?: number; sessionId?: string; selectedOption?: string; reviewFrequency?: string }) {
   const openId = await ensureLogin()
   return request('/practice-records', {
     method: 'POST',
@@ -583,13 +678,21 @@ export async function submitPracticeRecord(questionId: string, isCorrect: boolea
       practiceMode: 'daily',
       sequenceNo: progress?.current,
       totalCount: progress?.total,
+      durationMs: extra?.durationMs,
+      sessionId: extra?.sessionId,
+      selectedOption: extra?.selectedOption,
+      reviewFrequency: extra?.reviewFrequency,
     },
   })
 }
 
 export async function getModuleQuestions(moduleCode: string): Promise<PracticeQuestionSummary[]> {
   const moduleQuestions = await request<ApiQuestion[]>(`/modules/${moduleCode}/questions`)
-  if (!moduleQuestions || moduleQuestions.length === 0) return []
+  if (!moduleQuestions) {
+    if (!MINIAPP_ENV.useMockFallback) throw new Error('module_questions_request_failed')
+    return []
+  }
+  if (moduleQuestions.length === 0) return []
 
   return moduleQuestions.map((question) => normalizeQuestion(question))
 }
@@ -597,7 +700,11 @@ export async function getModuleQuestions(moduleCode: string): Promise<PracticeQu
 export async function getVideoLessons(moduleCode?: string): Promise<VideoLessonSummary[]> {
   const query = moduleCode ? `?moduleCode=${moduleCode}` : ''
   const videos = await request<ApiVideo[]>(`/videos${query}`)
-  return videos?.map(normalizeVideo) || (MINIAPP_ENV.useMockFallback ? practiceHomeMock.recommendedVideos : [])
+  if (!videos) {
+    if (!MINIAPP_ENV.useMockFallback) throw new Error('video_lessons_request_failed')
+    return practiceHomeMock.recommendedVideos
+  }
+  return videos.map(normalizeVideo)
 }
 
 export async function addFavorite(questionId: string) {
@@ -606,4 +713,29 @@ export async function addFavorite(questionId: string) {
     method: 'POST',
     data: { ...(openId ? { openId } : {}), questionId },
   })
+}
+
+export async function reportVideoPlay(videoId: string) {
+  const openId = await ensureLogin()
+  return request('/video-play-records', {
+    method: 'POST',
+    data: { ...(openId ? { openId } : {}), videoId },
+  })
+}
+
+export async function getRanking(type: string) {
+  const result = await request<{ list: Array<{ openId: string; nickname: string; value: number }>; me?: { rank: number; value: number } }>(`/ranking?type=${type}`)
+  return result || { list: [], me: null }
+}
+
+export interface HomeConfig {
+  notice?: string
+  dailyQuote?: string
+  examCountdown?: number
+  aboutText?: string
+}
+
+export async function getHomeConfig(): Promise<HomeConfig> {
+  const result = await request<HomeConfig>('/home-config')
+  return result || {}
 }

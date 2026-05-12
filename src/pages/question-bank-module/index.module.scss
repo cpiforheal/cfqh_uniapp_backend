@@ -1,187 +1,350 @@
+@use '../../styles/theme.scss' as *;
+
 .page {
+  position: relative;
   min-height: 100vh;
-  background: #f7fbfb;
-  padding: 24px 20px 30px;
+  padding: $space-2xl 36px 120px;
+  background: $gradient-practice;
   box-sizing: border-box;
+  overflow: hidden;
+}
+
+.decoBlob1 {
+  @include deco-blob(rgba(92, 214, 180, 0.25), 300px, -80px, -60px);
+}
+
+.decoBlob2 {
+  @include deco-blob(rgba(251, 191, 36, 0.15), 220px, 600px, auto);
+  left: -80px;
 }
 
 .header {
-  margin-bottom: 16px;
+  position: relative;
+  z-index: 1;
+  margin-bottom: $space-lg;
 }
 
 .title {
   display: block;
-  color: #17364c;
-  font-size: 34px;
-  font-weight: 800;
+  color: $color-text-primary;
+  font-size: $font-heading;
+  font-weight: $weight-bold;
 }
 
-.subtitle {
+.stats {
   display: block;
-  margin-top: 8px;
-  color: #627577;
-  font-size: 24px;
+  margin-top: $space-xs;
+  color: $color-text-muted;
+  font-size: $font-hint;
+  font-weight: $weight-normal;
 }
 
-.layout {
+.progressTrack {
+  margin-top: $space-sm;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 4px;
+  background: $gradient-btn-primary;
+  transition: width 0.3s ease;
+}
+
+// === 筛选 ===
+
+.filterRow {
+  position: relative;
+  z-index: 1;
   display: flex;
-  gap: 14px;
+  gap: 12px;
+  margin-bottom: $space-md;
 }
 
-.sidebar {
-  width: 208px;
-  flex: 0 0 208px;
-  border-radius: 16px;
-  background: #ffffff;
-  border: 1px solid #e6f0f1;
-  box-shadow: 0 8px 20px rgba(24, 67, 76, 0.04);
-  padding: 8px;
-  box-sizing: border-box;
-  max-height: calc(100vh - 180px);
-  overflow-y: auto;
+.filterTag {
+  padding: 8px 20px;
+  border-radius: $radius-pill;
+  background: transparent;
 }
 
-.chapterItem {
-  padding: 12px 12px;
-  border-radius: 12px;
-  margin-bottom: 8px;
-  background: #f4f9f9;
-  border: 1px solid #ecf4f4;
+.filterTag:active {
+  opacity: 0.7;
 }
 
-.chapterItemActive {
-  background: #dbf3f3;
-  border-color: #c6eaea;
+.filterTagActive {
+  background: $color-primary;
+}
+
+.filterText {
+  color: $color-text-muted;
+  font-size: 24px;
+  font-weight: $weight-normal;
+}
+
+.filterTextActive {
+  color: #ffffff;
+  font-weight: $weight-medium;
+}
+
+// === 章节列表 ===
+
+.chapterList {
+  position: relative;
+  z-index: 1;
+  margin-top: 0;
+}
+
+.chapterSection {
+  margin-bottom: $space-sm;
+}
+
+.chapterRow {
+  @include glass-card;
+  display: flex;
+  align-items: center;
+  padding: $space-md;
+  gap: $space-sm;
+  @include tap-active;
+}
+
+.chapterRowDone {
+  border-color: rgba($color-primary, 0.3);
+  background: rgba($color-primary, 0.08);
+}
+
+.chapterIcon {
+  color: $color-primary;
+  font-size: 26px;
+  font-weight: $weight-bold;
+  width: 32px;
+  text-align: center;
+}
+
+.chapterInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .chapterName {
-  display: block;
-  color: #17364c;
-  font-size: 23px;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
-.chapterPreview {
-  display: block;
-  margin-top: 4px;
-  color: #6f838d;
-  font-size: 20px;
-  line-height: 1.45;
-}
-
-.chapterCount {
-  display: inline-block;
-  margin-top: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 18px;
-  color: #5d7a83;
-  background: #edf4f5;
-}
-
-.content {
-  flex: 1;
-  min-width: 0;
-}
-
-.chapterCard {
-  border-radius: 16px;
-  background: #ffffff;
-  border: 1px solid #e6f0f1;
-  box-shadow: 0 8px 20px rgba(24, 67, 76, 0.04);
-  padding: 18px;
-  box-sizing: border-box;
-}
-
-.chapterTitle {
-  display: block;
-  color: #17364c;
-  font-size: 29px;
-  font-weight: 800;
+  color: $color-text-primary;
+  font-size: 28px;
+  font-weight: $weight-medium;
 }
 
 .chapterMeta {
-  display: block;
-  margin-top: 6px;
-  color: #6f838d;
+  color: $color-text-muted;
   font-size: 22px;
+  font-weight: $weight-normal;
 }
 
-.questionList {
-  margin-top: 12px;
+.chapterBtn {
+  padding: $space-xs 20px;
+  border-radius: $radius-pill;
+  background: $gradient-btn-primary;
+  @include btn-active;
 }
 
-.questionItem {
-  padding: 14px;
-  border-radius: 12px;
-  background: #f7fbfb;
-  border: 1px solid #edf4f5;
-  margin-top: 10px;
+.chapterBtnText {
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: $weight-medium;
 }
 
-.questionTitle {
-  display: block;
-  color: #17364c;
-  font-size: 24px;
-  font-weight: 700;
-  line-height: 1.45;
+// === 网格区域 ===
+
+.gridWrap {
+  margin-top: 4px;
+  padding: $space-sm;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 0 0 $radius-sm $radius-sm;
 }
 
-.questionMeta {
-  display: block;
-  margin-top: 6px;
-  color: #6f838d;
-  font-size: 21px;
+.gridGroups {
+  display: flex;
+  flex-direction: column;
+  gap: $space-md;
 }
 
-.empty {
-  margin-top: 18px;
-  border-radius: 16px;
-  background: #ffffff;
-  border: 1px dashed #d6e7e9;
-  color: #7d9099;
+.numberGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: $space-sm;
+}
+
+.numberCell {
+  position: relative;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1.5px solid rgba(0, 0, 0, 0.06);
+  @include tap-active;
+}
+
+.numberCellDone {
+  background: rgba($color-primary, 0.12);
+  border-color: rgba($color-primary, 0.3);
+}
+
+.numberCellWrong {
+  background: rgba($color-danger, 0.2);
+  border-color: rgba($color-danger, 0.85);
+  border-width: 2px;
+  box-shadow: 0 6px 14px rgba($color-danger, 0.2);
+}
+
+.numberCellDone.numberCellWrong {
+  background: rgba($color-danger, 0.2);
+  border-color: rgba($color-danger, 0.85);
+  box-shadow: 0 6px 14px rgba($color-danger, 0.2), inset 0 0 0 2px rgba(255, 255, 255, 0.7);
+}
+
+.numberText {
+  color: $color-text-regular;
+  font-size: 26px;
+  font-weight: $weight-bold;
+}
+
+.numberCellDone .numberText {
+  color: $color-primary-dark;
+}
+
+.numberCellWrong .numberText {
+  color: #d94b4b;
+}
+
+.numberCellDone.numberCellWrong .numberText {
+  color: #d94b4b;
+}
+
+.wrongMark {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: $color-danger;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: $weight-bold;
+  line-height: 24px;
   text-align: center;
-  padding: 26px 18px;
-  font-size: 24px;
 }
 
-.lockPanel {
-  margin-bottom: 16px;
-  padding: 24px;
-  border-radius: 18px;
-  background: #e6f3f3;
-  border: 1px solid #cde6e7;
+// === 图例 ===
+
+.gridLegend {
+  display: flex;
+  justify-content: center;
+  gap: $space-md;
+  margin-top: $space-sm;
+  padding-top: $space-sm;
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: $space-xs;
+}
+
+.legendDot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1.5px solid rgba(0, 0, 0, 0.06);
+}
+
+.legendDotDone {
+  background: rgba($color-primary, 0.12);
+  border-color: rgba($color-primary, 0.3);
+}
+
+.legendDotWrong {
+  background: $color-danger-soft;
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+.legendText {
+  color: $color-text-muted;
+  font-size: 20px;
+}
+
+// === 空状态 ===
+
+.noMatchWrap {
+  padding: $space-lg 0;
+  text-align: center;
+}
+
+.noMatch {
+  color: $color-text-muted;
+  font-size: $font-hint;
+}
+
+.emptyCard {
+  position: relative;
+  z-index: 1;
+  @include glass-card;
+  padding: $space-2xl 28px;
+  text-align: center;
+  margin-top: $space-sm;
+}
+
+.emptyText {
+  color: $color-text-muted;
+  font-size: $font-body;
+}
+
+// === 锁定 ===
+
+.lockCard {
+  position: relative;
+  z-index: 1;
+  @include glass-card;
+  padding: $space-lg 28px;
+  margin-top: $space-sm;
 }
 
 .lockTitle {
   display: block;
-  color: #0f7f83;
-  font-size: 28px;
-  font-weight: 800;
+  color: $color-primary-dark;
+  font-size: $font-title;
+  font-weight: $weight-bold;
 }
 
-.lockText {
+.lockDesc {
   display: block;
-  margin-top: 8px;
-  color: #627577;
-  font-size: 23px;
-  line-height: 1.55;
+  margin-top: $space-xs;
+  color: $color-text-muted;
+  font-size: 24px;
+  font-weight: $weight-normal;
 }
 
-.lockButton {
+.lockBtn {
   width: 160px;
-  height: 54px;
-  margin-top: 18px;
+  height: 56px;
+  margin-top: $space-sm;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 28px;
-  background: #138b8f;
+  border-radius: $radius-pill;
+  background: $gradient-btn-primary;
+  box-shadow: $shadow-primary;
+  @include btn-active;
 }
 
-.lockButtonText {
+.lockBtnText {
   color: #ffffff;
-  font-size: 24px;
-  font-weight: 800;
+  font-size: $font-body;
+  font-weight: $weight-medium;
 }
