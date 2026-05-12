@@ -2,7 +2,7 @@ import { Text, View } from '@tarojs/components'
 import Taro, { useDidShow, usePullDownRefresh } from '@tarojs/taro'
 import { useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { getLicenseStatus, getModuleQuestions } from '@/services/nursing'
+import { getLicenseStatus, getModuleQuestions, getMyFavorites, getMyMistakes } from '@/services/nursing'
 import { useAuthStore } from '@/stores/auth'
 import type { PracticeQuestionSummary } from '@/types/study'
 import { cx } from '@/utils/classNames'
@@ -34,13 +34,50 @@ export default function QuestionBankModulePage() {
       if (!status.authorized) { setQuestions([]); return }
       const tokenCode = status.authorization?.licenseToken?.code
       if (tokenCode) setAuthorized(tokenCode, status.authorization?.expiresAt)
-      setQuestions(await getModuleQuestions(moduleCode))
+
+      if (moduleCode === 'all') {
+        const isReviewMode = moduleName.includes('错题') || moduleName.includes('复刷')
+        if (isReviewMode) {
+          const mistakes = await getMyMistakes()
+          setQuestions((mistakes || []).map((m, idx) => ({
+            id: m.question?.id || m.questionId,
+            title: m.question?.title || '未知题目',
+            stem: '',
+            type: 'single_choice' as const,
+            difficulty: 'basic' as const,
+            difficultyText: '基础',
+            knowledgePoints: [],
+            estimatedMinutes: 1,
+            chapter: m.question?.chapter || '未分类',
+            wrongCount: m.wrongCount,
+            isMistake: true,
+            orderIndex: idx + 1,
+          })))
+        } else {
+          const favorites = await getMyFavorites()
+          setQuestions((favorites || []).map((f, idx) => ({
+            id: f.question?.id || f.questionId,
+            title: f.question?.title || '未知题目',
+            stem: '',
+            type: 'single_choice' as const,
+            difficulty: 'basic' as const,
+            difficultyText: '基础',
+            knowledgePoints: [],
+            estimatedMinutes: 1,
+            chapter: f.question?.chapter || '未分类',
+            isFavorite: true,
+            orderIndex: idx + 1,
+          })))
+        }
+      } else {
+        setQuestions(await getModuleQuestions(moduleCode))
+      }
     } catch {
       setQuestions([])
     } finally {
       setIsLoading(false)
     }
-  }, [moduleCode, setAuthorized])
+  }, [moduleCode, moduleName, setAuthorized])
 
   useEffect(() => {
     if (licenseStatus?.authorized) loadQuestions()

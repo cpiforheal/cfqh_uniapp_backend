@@ -130,10 +130,11 @@ export class PracticeService {
   async reviewToday(openId: string) {
     const userId = await this.getUserId(openId)
     const now = new Date()
+    const reviewWhere = { userId, mastered: false, OR: [{ nextReviewAt: { lte: now } }, { nextReviewAt: null }] }
     const [totalCount, mistakes] = await Promise.all([
-      this.prisma.mistake.count({ where: { userId, mastered: false, nextReviewAt: { lte: now } } }),
+      this.prisma.mistake.count({ where: reviewWhere }),
       this.prisma.mistake.findMany({
-        where: { userId, mastered: false, nextReviewAt: { lte: now } },
+        where: reviewWhere,
         include: { question: { select: { id: true, title: true, chapter: true, moduleName: true } } },
         orderBy: { wrongCount: 'desc' },
         take: 20,
@@ -157,13 +158,13 @@ export class PracticeService {
     const rangeStart = new Date(now)
     if (range === '7d') rangeStart.setDate(now.getDate() - 6)
     else if (range === '30d') rangeStart.setDate(now.getDate() - 29)
-    else rangeStart.setFullYear(2020)
+    else rangeStart.setDate(now.getDate() - 29)
     rangeStart.setHours(0, 0, 0, 0)
 
     const [allRecords, rangeMistakes, allMistakes, favorites, questions] = await Promise.all([
       this.prisma.practiceRecord.findMany({ where: { userId }, select: { questionId: true, isCorrect: true, createdAt: true } }),
       this.prisma.mistake.findMany({ where: { userId, mastered: false }, include: { question: { select: { chapter: true, moduleCode: true, moduleName: true } } } }),
-      this.prisma.mistake.findMany({ where: { userId, mastered: false, nextReviewAt: { lte: now } }, select: { id: true } }),
+      this.prisma.mistake.findMany({ where: { userId, mastered: false, OR: [{ nextReviewAt: { lte: now } }, { nextReviewAt: null }] }, select: { id: true } }),
       this.prisma.favorite.count({ where: { userId } }),
       this.prisma.question.findMany({ where: { status: 'published', subjectCode: 'nursing' }, select: { id: true, moduleCode: true, moduleName: true, chapter: true } }),
     ])
@@ -176,7 +177,7 @@ export class PracticeService {
     const weeklyCount = rangeRecords.length
     const weeklyDays = new Set(rangeRecords.map((r) => r.createdAt.toISOString().slice(0, 10))).size
 
-    const days = range === '7d' ? 7 : range === '30d' ? 30 : 14
+    const days = range === '7d' ? 7 : 30
     const trendMap = new Map<string, { count: number; correct: number }>()
     for (let i = 0; i < days; i++) {
       const d = new Date(rangeStart)

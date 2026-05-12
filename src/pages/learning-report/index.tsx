@@ -8,12 +8,14 @@ import styles from './index.module.scss'
 export default function LearningReportPage() {
   const [data, setData] = useState<LearningReportData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [unauthorized, setUnauthorized] = useState(false)
 
   useEffect(() => {
     getLearningReport('7d').then((result) => {
+      if (!result) setUnauthorized(true)
       setData(result)
       setLoading(false)
-    }).catch(() => setLoading(false))
+    }).catch(() => { setUnauthorized(true); setLoading(false) })
   }, [])
 
   if (loading) {
@@ -24,10 +26,18 @@ export default function LearningReportPage() {
     )
   }
 
-  if (!data) {
+  if (unauthorized || !data) {
     return (
       <View className={styles.page}>
-        <View className={styles.loadingCard}><Text className={styles.loadingText}>暂无学习数据，开始做题后生成报告</Text></View>
+        <View className={styles.loadingCard}>
+          <Text className={styles.loadingText}>{unauthorized ? '激活通行码后生成学习报告' : '暂无学习数据，开始做题后生成报告'}</Text>
+          {unauthorized && (
+            <View className={styles.actionCard} onTap={() => Taro.navigateTo({ url: '/pages/activate/index' })}>
+              <Text className={styles.actionText}>去激活</Text>
+              <Text className={styles.actionBtn}>→</Text>
+            </View>
+          )}
+        </View>
       </View>
     )
   }
