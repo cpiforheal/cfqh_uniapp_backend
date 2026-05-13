@@ -82,6 +82,7 @@ export default function PracticePage() {
   const progress = data.progress
   const dailyQuestionId = data.dailyQuestion?.id
   const continueQuestionId = data.continueQuestion?.id || dailyQuestionId
+  const hasPracticeQuestion = Boolean(continueQuestionId)
   const recommendedQuestions = (data.recommendedQuestions?.length ? data.recommendedQuestions : [data.dailyQuestion])
     .filter(isQuestion)
     .filter((question, index, list) => list.findIndex((item) => item?.id === question?.id) === index)
@@ -282,25 +283,35 @@ export default function PracticePage() {
         </View>
       )}
 
-      <View className={styles.heroCard} onTap={() => goQuestion(continueQuestionId)}>
-        <View className={styles.heroTopRow}>
-          <Text className={styles.heroLabel}>📖 继续练习</Text>
-          <Text className={styles.heroPercent}>{percent}%</Text>
+      {hasPracticeQuestion ? (
+        <View className={styles.heroCard} onTap={() => goQuestion(continueQuestionId)}>
+          <View className={styles.heroTopRow}>
+            <Text className={styles.heroLabel}>📖 继续练习</Text>
+            <Text className={styles.heroPercent}>{percent}%</Text>
+          </View>
+          <Text className={styles.heroTitle}>
+            {data.continueQuestion?.title || data.dailyQuestion?.title || '继续今日练习'}
+          </Text>
+          <Text className={styles.heroMeta}>
+            {data.continueQuestion?.chapter || data.dailyQuestion?.chapter || '医护大类'} · 上次停留
+          </Text>
+          <View className={styles.progressTrack}>
+            <View className={styles.progressFill} style={{ width: `${percent}%` }} />
+          </View>
+          <View className={styles.progressFoot}>
+            <Text className={styles.progressText}>已练 {progress?.done || 0} / {progress?.total || 0}</Text>
+            <Text className={styles.heroAction}>继续 →</Text>
+          </View>
         </View>
-        <Text className={styles.heroTitle}>
-          {data.continueQuestion?.title || '生命体征观察要点'}
-        </Text>
-        <Text className={styles.heroMeta}>
-          {data.continueQuestion?.chapter || '基础护理学'} · 上次停留
-        </Text>
-        <View className={styles.progressTrack}>
-          <View className={styles.progressFill} style={{ width: `${percent}%` }} />
+      ) : (
+        <View className={styles.emptyCard}>
+          <Text className={styles.emptyTitle}>{isError ? '练习首页加载失败' : '暂无可练习题目'}</Text>
+          <Text className={styles.emptyText}>{isError ? '请下拉刷新，或稍后重试' : '当前账号已授权，但后端没有返回已发布题目。请确认后台题目状态为已发布。'}</Text>
+          <View className={styles.emptyButton} onTap={goQuestionBank}>
+            <Text className={styles.emptyButtonText}>去题库</Text>
+          </View>
         </View>
-        <View className={styles.progressFoot}>
-          <Text className={styles.progressText}>已练 {progress?.done || 0} / {progress?.total || 0}</Text>
-          <Text className={styles.heroAction}>继续 →</Text>
-        </View>
-      </View>
+      )}
 
       {reviewCount > 0 && (
         <View className={styles.weakRow} onTap={() => Taro.navigateTo({ url: '/pages/question-bank-module/index?moduleCode=all&moduleName=%E9%94%99%E9%A2%98%E5%A4%8D%E5%88%B7' })}>

@@ -24,7 +24,7 @@ function questionTypeText(type?: string) {
 
 export default function QuestionDetailPage() {
   const router = Taro.useRouter()
-  const questionId = router.params.id || 'q-001'
+  const questionId = String(router.params.id || '').trim()
   const [selected, setSelected] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [favorited, setFavorited] = useState(false)
@@ -35,6 +35,7 @@ export default function QuestionDetailPage() {
   const [data, setData] = useState<QuestionDetail | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isError, setIsError] = useState(false)
+  const [loadErrorText, setLoadErrorText] = useState('请确认通行码仍有效，或稍后下拉重试。')
 
   const setAuthorized = useAuthStore((state) => state.setAuthorized)
   const { settings, hydrate: hydrateSettings } = useSettingsStore()
@@ -48,6 +49,7 @@ export default function QuestionDetailPage() {
     setCheckingAuthorization(true)
     setIsLoading(true)
     setIsError(false)
+    setLoadErrorText('请确认通行码仍有效，或稍后下拉重试。')
     try {
       const status = await getLicenseStatus()
       setServerAuthorized(Boolean(status.authorized))
@@ -59,6 +61,12 @@ export default function QuestionDetailPage() {
 
       const tokenCode = status.authorization?.licenseToken?.code
       if (tokenCode) setAuthorized(tokenCode, status.authorization?.expiresAt)
+      if (!questionId) {
+        setIsError(true)
+        setLoadErrorText('题目入口缺少有效 ID，请从练习首页或题库重新进入。')
+        setData(null)
+        return
+      }
       setData(await getQuestionDetail(questionId))
     } catch (error) {
       console.warn('question detail load failed', error)
@@ -77,7 +85,7 @@ export default function QuestionDetailPage() {
     setSubmitting(false)
     setActiveReviewTab('analysis')
     loadQuestionDetail()
-  }, [questionId])
+  }, [questionId, loadQuestionDetail])
 
   useDidShow(() => {
     loadQuestionDetail()
@@ -221,7 +229,7 @@ export default function QuestionDetailPage() {
       <View className={styles.page}>
         <View className={styles.lockCard}>
           <Text className={styles.lockTitle}>{isError ? '题目加载失败' : '题目加载中'}</Text>
-          <Text className={styles.lockDesc}>{isError ? '请确认通行码仍有效，或稍后下拉重试。' : '正在读取授权题目内容。'}</Text>
+          <Text className={styles.lockDesc}>{isError ? loadErrorText : '正在读取授权题目内容。'}</Text>
           {isError && (
             <View className={styles.lockButton} onTap={loadQuestionDetail}>
               <Text className={styles.lockButtonText}>重新加载</Text>

@@ -74,6 +74,20 @@ export function getLockedPracticeHomeOverview(): PracticeHomeOverview {
   }
 }
 
+function getEmptyAuthorizedPracticeQuestion(): PracticeQuestionSummary {
+  return {
+    id: '',
+    title: '暂无已发布题目',
+    stem: '当前账号已授权，但后端没有返回可练习题目。',
+    type: 'single_choice',
+    difficulty: 'basic',
+    difficultyText: '待同步',
+    knowledgePoints: [],
+    estimatedMinutes: 0,
+    chapter: '题库同步',
+  }
+}
+
 export function getLockedQuestionBankOverview(): QuestionBankOverview {
   return {
     ...questionBankMock,
@@ -479,31 +493,34 @@ export async function getPracticeHomeOverview(): Promise<PracticeHomeOverview> {
     }
   }
 
-  const dailyQuestion = home.dailyQuestion ? normalizeQuestion(home.dailyQuestion) : practiceHomeMock.dailyQuestion || practiceHomeMock.todayProblem
-  const continueQuestion = home.continueQuestion ? normalizeQuestion(home.continueQuestion) : dailyQuestion
-  const recommendedQuestions = (home.recommendedQuestions || [])
+  const normalizedRecommendedQuestions = (home.recommendedQuestions || [])
     .map(normalizeQuestion)
+
+  const dailyQuestion = home.dailyQuestion ? normalizeQuestion(home.dailyQuestion) : normalizedRecommendedQuestions[0]
+  const continueQuestion = home.continueQuestion ? normalizeQuestion(home.continueQuestion) : dailyQuestion
+  const recommendedQuestions = normalizedRecommendedQuestions
     .filter((question) => question.id !== continueQuestion?.id)
   if (recommendedQuestions.length === 0 && dailyQuestion) {
     recommendedQuestions.push(dailyQuestion)
   }
-  const recentMistakes = home.recentMistakes?.map((item) => ({ ...normalizeQuestion(item), isMistake: true, wrongCount: item.wrongCount || 1 })) || practiceHomeMock.recentMistakes
-  const recommendedVideos = home.recommendedVideos?.map(normalizeVideo) || practiceHomeMock.recommendedVideos
-  const confusingPoints: ConfusingPointSummary[] = home.confusingPoints?.map((item) => ({ id: item.id, title: item.title, contrast: item.contrastSummary })) || practiceHomeMock.confusingPoints
+  const recentMistakes = home.recentMistakes?.map((item) => ({ ...normalizeQuestion(item), isMistake: true, wrongCount: item.wrongCount || 1 })) || []
+  const recommendedVideos = home.recommendedVideos?.map(normalizeVideo) || []
+  const confusingPoints: ConfusingPointSummary[] = home.confusingPoints?.map((item) => ({ id: item.id, title: item.title, contrast: item.contrastSummary })) || []
   const knowledgeCards: NursingKnowledgeCard[] = home.memoryTips?.map((item) => ({
     id: item.id,
     title: item.title,
     summary: `关联知识点：${item.relatedKnowledgeTags}`,
     keywords: item.relatedKnowledgeTags.split(',').filter(Boolean),
     memoryTip: item.tip,
-  })) || practiceHomeMock.knowledgeCards
+  })) || []
+  const todayProblem = dailyQuestion || continueQuestion || recommendedQuestions[0] || getEmptyAuthorizedPracticeQuestion()
 
   return {
     ...practiceHomeMock,
     subjectName: home.subjectName || '医护大类',
     authorization: normalizeAuthorization(licenseStatus),
     progress: home.progress || practiceHomeMock.progress,
-    todayProblem: dailyQuestion,
+    todayProblem,
     dailyQuestion,
     continueQuestion,
     recommendedQuestions: recommendedQuestions.slice(0, 5),

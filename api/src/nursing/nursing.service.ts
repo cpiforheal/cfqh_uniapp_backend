@@ -483,7 +483,10 @@ export class NursingService {
         ])
       : [[], []]
     const daily = dailyPractice[0] ?? null
-    const dailyQuestion = daily ? questions.find((question) => question.id === daily.questionId) ?? null : questions[0] ?? null
+    const firstPublishedQuestion = questions[0] ?? null
+    const dailyQuestion = daily
+      ? questions.find((question) => question.id === daily.questionId) ?? firstPublishedQuestion
+      : firstPublishedQuestion
     const continueQuestion = records[0]
       ? questions.find((question) => question.id === records[0].questionId) ?? dailyQuestion
       : dailyQuestion
