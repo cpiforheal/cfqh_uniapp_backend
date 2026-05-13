@@ -3,7 +3,7 @@ export const IS_WEAPP = MINIAPP_PLATFORM === 'weapp'
 
 export const MINIAPP_ENV = {
   platform: MINIAPP_PLATFORM,
-  apiBase: process.env.TARO_APP_API_BASE || 'http://127.0.0.1:3001/api',
+  apiBase: process.env.TARO_APP_API_BASE || '',
   apiFallbackBases: (process.env.TARO_APP_API_FALLBACK_BASES || '').split(',').map((item) => item.trim()).filter(Boolean),
   useCloudGateway: process.env.TARO_APP_USE_CLOUD_GATEWAY !== 'false',
   cloudGatewayName: process.env.TARO_APP_CLOUD_GATEWAY_NAME || 'nursingGateway',

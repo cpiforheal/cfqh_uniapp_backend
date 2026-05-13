@@ -5,9 +5,11 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const distDir = path.join(root, 'dist')
+const targetRoot = process.argv[2] ? path.resolve(process.argv[2]) : root
+const distDir = path.join(targetRoot, 'dist')
 
 const forbiddenPatterns = [
+  { pattern: 'http://127.0.0.1:3001/api', message: 'dist contains local API base' },
   { pattern: 'local-weapp-debug-openid', message: 'dist contains local dev openId' },
   { pattern: 'dev-open-id-local', message: 'dist contains api dev openId placeholder' },
   { pattern: 'skipWechatLogin: "true" ===', message: 'dist skips WeChat login' },
@@ -46,4 +48,4 @@ if (failures.length > 0) {
   process.exit(1)
 }
 
-console.log('miniapp dist check passed')
+console.log(`miniapp dist check passed: ${path.relative(root, distDir) || 'dist'}`)
