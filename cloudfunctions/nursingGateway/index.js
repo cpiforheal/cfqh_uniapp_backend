@@ -1,4 +1,6 @@
 const cloud = require('wx-server-sdk')
+const http = require('http')
+const https = require('https')
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 
@@ -22,21 +24,50 @@ function normalizePath(path) {
   return raw.startsWith('/') ? raw : `/${raw}`
 }
 
-async function fetchJson(url, options = {}) {
-  const response = await fetch(url, options)
-  const text = await response.text()
-  let data
-  try {
-    data = JSON.parse(text)
-  } catch {
-    data = text
-  }
+function requestJson(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    const target = new URL(url)
+    const body = options.body || ''
+    const client = target.protocol === 'http:' ? http : https
+    const request = client.request(
+      target,
+      {
+        method: options.method || 'GET',
+        headers: {
+          ...(options.headers || {}),
+          ...(body ? { 'content-length': Buffer.byteLength(body) } : {}),
+        },
+        timeout: 15000,
+      },
+      (response) => {
+        const chunks = []
+        response.on('data', (chunk) => chunks.push(chunk))
+        response.on('end', () => {
+          const text = Buffer.concat(chunks).toString('utf8')
+          let data
+          try {
+            data = JSON.parse(text)
+          } catch {
+            data = text
+          }
 
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${typeof data === 'string' ? data : JSON.stringify(data)}`)
-  }
+          if (response.statusCode < 200 || response.statusCode >= 300) {
+            reject(new Error(`HTTP ${response.statusCode}: ${typeof data === 'string' ? data : JSON.stringify(data)}`))
+            return
+          }
 
-  return data
+          resolve(data)
+        })
+      },
+    )
+
+    request.on('timeout', () => {
+      request.destroy(new Error(`request timeout: ${target.origin}`))
+    })
+    request.on('error', reject)
+    if (body) request.write(body)
+    request.end()
+  })
 }
 
 async function proxyRequest({ path, method = 'GET', data }, openId) {
@@ -55,7 +86,7 @@ async function proxyRequest({ path, method = 'GET', data }, openId) {
   }
 
   const url = `${getApiBase()}${normalizedPath}`
-  const result = await fetchJson(url, {
+  const result = await requestJson(url, {
     method: normalizedMethod,
     headers,
     ...(normalizedMethod === 'GET' ? {} : { body: JSON.stringify(data || {}) }),

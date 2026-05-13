@@ -41,6 +41,7 @@ jobs:
         run: pnpm build:weapp
         env:
           TARO_APP_USE_CLOUD_GATEWAY: "true"
+          TARO_APP_CLOUD_ENV_ID: ${{ vars.TARO_APP_CLOUD_ENV_ID }}
           TARO_APP_CLOUD_GATEWAY_NAME: nursingGateway
           TARO_APP_USE_MOCK_FALLBACK: "false"
           TARO_APP_DEBUG_API: "false"

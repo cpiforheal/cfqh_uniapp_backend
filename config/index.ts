@@ -25,6 +25,7 @@ export default defineConfig<'webpack5'>(async (merge, { command, mode }) => {
       'process.env.TARO_APP_API_BASE': JSON.stringify(process.env.TARO_APP_API_BASE || ''),
       'process.env.TARO_APP_API_FALLBACK_BASES': JSON.stringify(process.env.TARO_APP_API_FALLBACK_BASES || ''),
       'process.env.TARO_APP_USE_CLOUD_GATEWAY': JSON.stringify(process.env.TARO_APP_USE_CLOUD_GATEWAY || ''),
+      'process.env.TARO_APP_CLOUD_ENV_ID': JSON.stringify(process.env.TARO_APP_CLOUD_ENV_ID || ''),
       'process.env.TARO_APP_CLOUD_GATEWAY_NAME': JSON.stringify(process.env.TARO_APP_CLOUD_GATEWAY_NAME || ''),
       'process.env.TARO_APP_USE_MOCK_FALLBACK': JSON.stringify(process.env.TARO_APP_USE_MOCK_FALLBACK || ''),
       'process.env.TARO_APP_DEBUG_API': JSON.stringify(process.env.TARO_APP_DEBUG_API || ''),

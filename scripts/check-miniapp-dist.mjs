@@ -10,6 +10,7 @@ const distDir = path.join(targetRoot, 'dist')
 
 const forbiddenPatterns = [
   { pattern: 'http://127.0.0.1:3001/api', message: 'dist contains local API base' },
+  { pattern: 'cloudEnvId:""', message: 'dist does not specify cloud env id' },
   { pattern: 'local-weapp-debug-openid', message: 'dist contains local dev openId' },
   { pattern: 'dev-open-id-local', message: 'dist contains api dev openId placeholder' },
   { pattern: 'skipWechatLogin: "true" ===', message: 'dist skips WeChat login' },

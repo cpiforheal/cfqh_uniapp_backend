@@ -6,6 +6,7 @@ export const MINIAPP_ENV = {
   apiBase: process.env.TARO_APP_API_BASE || '',
   apiFallbackBases: (process.env.TARO_APP_API_FALLBACK_BASES || '').split(',').map((item) => item.trim()).filter(Boolean),
   useCloudGateway: process.env.TARO_APP_USE_CLOUD_GATEWAY !== 'false',
+  cloudEnvId: process.env.TARO_APP_CLOUD_ENV_ID || '',
   cloudGatewayName: process.env.TARO_APP_CLOUD_GATEWAY_NAME || 'nursingGateway',
   useMockFallback: process.env.TARO_APP_USE_MOCK_FALLBACK === 'true',
   debugApi: process.env.TARO_APP_DEBUG_API === 'true',

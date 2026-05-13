@@ -66,6 +66,7 @@ function checkStaticReleaseGuards() {
 
   const miniEnv = read('src/config/env.ts')
   check(miniEnv.includes("useCloudGateway: process.env.TARO_APP_USE_CLOUD_GATEWAY !== 'false'"), '小程序默认使用云函数网关')
+  check(miniEnv.includes("cloudEnvId: process.env.TARO_APP_CLOUD_ENV_ID || ''"), '小程序支持显式云开发环境 ID')
   check(miniEnv.includes("useMockFallback: process.env.TARO_APP_USE_MOCK_FALLBACK === 'true'"), '小程序 mock 兜底必须显式开启')
   check(miniEnv.includes("devOpenId: process.env.TARO_APP_DEV_OPEN_ID || ''"), '小程序 dev openId 默认留空')
 
@@ -131,6 +132,7 @@ function checkProductionEnv() {
   check(!unsafeSecret(env.WECHAT_APP_SECRET), 'WECHAT_APP_SECRET 已配置', 'WECHAT_APP_SECRET 未配置或仍是占位值')
 
   check(process.env.TARO_APP_USE_CLOUD_GATEWAY !== 'false', '小程序生产构建未关闭云函数网关', 'TARO_APP_USE_CLOUD_GATEWAY 不能为 false')
+  check(!isBlank(process.env.TARO_APP_CLOUD_ENV_ID), '小程序生产构建已指定云开发环境 ID', 'TARO_APP_CLOUD_ENV_ID 必须配置')
   check(process.env.TARO_APP_USE_MOCK_FALLBACK !== 'true', '小程序生产构建未开启 mock fallback', 'TARO_APP_USE_MOCK_FALLBACK 不能为 true')
   check(isBlank(process.env.TARO_APP_DEV_OPEN_ID), '小程序生产构建未设置 dev openId', 'TARO_APP_DEV_OPEN_ID 必须为空')
   check(process.env.TARO_APP_SKIP_WECHAT_LOGIN !== 'true', '小程序生产构建未跳过微信登录', 'TARO_APP_SKIP_WECHAT_LOGIN 不能为 true')

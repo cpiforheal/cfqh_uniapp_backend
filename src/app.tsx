@@ -2,7 +2,7 @@ import '@/utils/abort-controller'
 import { PropsWithChildren, useEffect } from 'react'
 import Taro from '@tarojs/taro'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { IS_WEAPP } from '@/config/env'
+import { IS_WEAPP, MINIAPP_ENV } from '@/config/env'
 import { getLicenseStatus } from '@/services/nursing'
 import { useAuthStore } from '@/stores/auth'
 import './app.scss'
@@ -21,7 +21,10 @@ function App({ children }: PropsWithChildren) {
   useEffect(() => {
     try {
       if (IS_WEAPP && Taro.cloud) {
-        Taro.cloud.init({ traceUser: true })
+        Taro.cloud.init({
+          ...(MINIAPP_ENV.cloudEnvId ? { env: MINIAPP_ENV.cloudEnvId } : {}),
+          traceUser: true,
+        })
       }
     } catch (error) {
       console.warn('cloud init failed', error)
