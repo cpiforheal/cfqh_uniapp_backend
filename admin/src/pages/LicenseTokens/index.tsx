@@ -12,11 +12,37 @@ function formatDate(value?: string | null, fallback = '-') {
   return value ? String(value).slice(0, 10) : fallback
 }
 
+function formatDateTime(value?: string | null, fallback = '-') {
+  if (!value) return fallback
+  return String(value).replace('T', ' ').slice(0, 16)
+}
+
 function licenseStatusTag(status?: AdminLicenseTokenRow['status']) {
   if (status === 'bound') return <Tag color="green">已绑定</Tag>
   if (status === 'expired') return <Tag color="orange">已过期</Tag>
   if (status === 'disabled') return <Tag color="red">已禁用</Tag>
   return <Tag>未使用</Tag>
+}
+
+function activationReasonText(reason?: string | null) {
+  if (reason === 'authorized') return '激活成功'
+  if (reason === 'not_found') return '无效码'
+  if (reason === 'disabled') return '已禁用'
+  if (reason === 'expired') return '已过期'
+  if (reason === 'bound_to_other_account') return '绑定他人'
+  return reason || '-'
+}
+
+function activationResultTag(result?: string | null, reason?: string | null) {
+  if (!result) return <Tag>无尝试</Tag>
+  if (result === 'success') return <Tag color="green">{activationReasonText(reason)}</Tag>
+  return <Tag color="red">{activationReasonText(reason)}</Tag>
+}
+
+function riskTag(riskLevel?: string | null, riskReason?: string | null) {
+  if (riskLevel === 'high') return <Tag color="red">{riskReason || '多人尝试'}</Tag>
+  if (riskLevel === 'medium') return <Tag color="orange">{riskReason || '失败较多'}</Tag>
+  return <Tag>正常</Tag>
 }
 
 function copyText(value?: string | null) {
@@ -86,6 +112,7 @@ export default function LicenseTokensPage() {
       bound: latestRows.filter((item) => item.status === 'bound').length,
       unused: latestRows.filter((item) => item.status === 'unused').length,
       disabled: latestRows.filter((item) => item.status === 'disabled').length,
+      risk: latestRows.filter((item) => item.activationAttemptSummary?.riskLevel && item.activationAttemptSummary.riskLevel !== 'normal').length,
     }
   }, [latestRows])
 
@@ -102,6 +129,21 @@ export default function LicenseTokensPage() {
       ),
     },
     { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => licenseStatusTag(record.status) },
+    {
+      title: '授权尝试',
+      width: 170,
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Space size={4}>
+            {activationResultTag(record.activationAttemptSummary?.lastAttemptResult, record.activationAttemptSummary?.lastAttemptReason)}
+            {riskTag(record.activationAttemptSummary?.riskLevel, record.activationAttemptSummary?.riskReason)}
+          </Space>
+          <Typography.Text type="secondary">
+            {record.activationAttemptSummary?.attemptCount || 0} 次 / {record.activationAttemptSummary?.distinctOpenIdCount || 0} 账号
+          </Typography.Text>
+        </Space>
+      ),
+    },
     {
       title: '绑定账号',
       dataIndex: 'boundOpenId',
@@ -245,6 +287,7 @@ export default function LicenseTokensPage() {
               { label: '已绑定', value: 'bound' },
               { label: '已禁用', value: 'disabled' },
               { label: '已过期', value: 'expired' },
+              { label: '授权异常', value: 'risk' },
             ]}
           />,
           <Button key="reload" icon={<ReloadOutlined />} onClick={() => actionRef.current?.reload()}>查询</Button>,
@@ -257,6 +300,24 @@ export default function LicenseTokensPage() {
               <Col xs={24} md={8}><Typography.Text type="secondary">资源范围：</Typography.Text><Typography.Text>{record.resourceScope || 'all'}</Typography.Text></Col>
               <Col xs={24} md={8}><Typography.Text type="secondary">最大绑定数：</Typography.Text><Typography.Text>{record.maxBindCount}</Typography.Text></Col>
               <Col xs={24} md={8}><Typography.Text type="secondary">更新时间：</Typography.Text><Typography.Text>{formatDate(record.updatedAt)}</Typography.Text></Col>
+              <Col span={24}>
+                <Typography.Text strong>最近授权尝试</Typography.Text>
+              </Col>
+              {(record.recentActivationAttempts || []).length === 0 ? (
+                <Col span={24}><Typography.Text type="secondary">暂无授权尝试</Typography.Text></Col>
+              ) : (
+                (record.recentActivationAttempts || []).map((attempt) => (
+                  <Col xs={24} key={attempt.id}>
+                    <Row gutter={[12, 8]}>
+                      <Col xs={24} md={5}><Typography.Text type="secondary">时间：</Typography.Text>{formatDateTime(attempt.createdAt)}</Col>
+                      <Col xs={24} md={4}><Typography.Text type="secondary">结果：</Typography.Text>{activationResultTag(attempt.result, attempt.reason)}</Col>
+                      <Col xs={24} md={6}><Typography.Text type="secondary">openId：</Typography.Text><Typography.Text copyable={attempt.openId ? { text: attempt.openId } : undefined}>{attempt.openId || '-'}</Typography.Text></Col>
+                      <Col xs={24} md={4}><Typography.Text type="secondary">设备：</Typography.Text>{attempt.device || '-'}</Col>
+                      <Col xs={24} md={5}><Typography.Text type="secondary">IP：</Typography.Text>{attempt.ip || '-'}</Col>
+                    </Row>
+                  </Col>
+                ))
+              )}
             </Row>
           ),
         }}
@@ -265,7 +326,8 @@ export default function LicenseTokensPage() {
             <Col xs={24} md={6}><StatisticCard statistic={{ title: '当前筛选总数', value: summary.total }} /></Col>
             <Col xs={24} md={6}><StatisticCard statistic={{ title: '已绑定', value: summary.bound }} /></Col>
             <Col xs={24} md={6}><StatisticCard statistic={{ title: '未使用', value: summary.unused }} /></Col>
-            <Col xs={24} md={6}><StatisticCard statistic={{ title: '已禁用', value: summary.disabled }} /></Col>
+            <Col xs={24} md={3}><StatisticCard statistic={{ title: '已禁用', value: summary.disabled }} /></Col>
+            <Col xs={24} md={3}><StatisticCard statistic={{ title: '授权异常', value: summary.risk }} /></Col>
           </Row>
         )}
       />

@@ -1,11 +1,12 @@
 import { ConfigService } from '@nestjs/config'
 import { ContentStatus, LicenseStatus, SubjectCode } from '@prisma/client'
+import { AdminContextService } from '../common/admin-context'
 import { PrismaService } from '../prisma/prisma.service'
 import { NursingService } from './nursing.service'
 
 describe('NursingService catalog authorization', () => {
   function createService(prisma: unknown) {
-    return new NursingService(prisma as PrismaService, {} as ConfigService)
+    return new NursingService(prisma as PrismaService, {} as ConfigService, { getCurrentAdmin: () => undefined } as AdminContextService)
   }
 
   it('returns only a locked course skeleton when openId is not authorized', async () => {
@@ -86,6 +87,73 @@ describe('NursingService catalog authorization', () => {
     })
     expect(prisma.practiceRecord.findMany).toHaveBeenCalledWith({
       where: { userId: 'user-1' },
+      select: { questionId: true },
+    })
+  })
+
+  it('returns per-user module question progress for an authorized openId', async () => {
+    const prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue({ id: 'user-1', openId: 'authorized-openid' }) },
+      question: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'question-1',
+            title: '已做题',
+            stem: '已做题干',
+            optionsJson: '[]',
+            moduleCode: 'clinical_skills',
+            moduleName: '临床技能操作',
+            chapter: '人文关怀',
+            chapterSort: 1,
+            difficulty: 'basic',
+            subjectCode: SubjectCode.nursing,
+            status: ContentStatus.published,
+          },
+          {
+            id: 'question-2',
+            title: '未做题',
+            stem: '未做题干',
+            optionsJson: '[]',
+            moduleCode: 'clinical_skills',
+            moduleName: '临床技能操作',
+            chapter: '人文关怀',
+            chapterSort: 1,
+            difficulty: 'basic',
+            subjectCode: SubjectCode.nursing,
+            status: ContentStatus.published,
+          },
+        ]),
+      },
+      practiceRecord: {
+        findMany: jest.fn().mockResolvedValue([{ questionId: 'question-1' }]),
+      },
+      favorite: {
+        findMany: jest.fn().mockResolvedValue([{ questionId: 'question-1' }]),
+      },
+      mistake: {
+        findMany: jest.fn().mockResolvedValue([{ questionId: 'question-1', wrongCount: 2 }]),
+      },
+    }
+    const service = createService(prisma)
+
+    const questions = await service.moduleQuestions('clinical_skills', 'authorized-openid')
+
+    expect(questions[0]).toMatchObject({
+      id: 'question-1',
+      completed: true,
+      isFavorite: true,
+      isMistake: true,
+      wrongCount: 2,
+    })
+    expect(questions[1]).toMatchObject({
+      id: 'question-2',
+      completed: false,
+      isFavorite: false,
+      isMistake: false,
+      wrongCount: 0,
+    })
+    expect(prisma.practiceRecord.findMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1', questionId: { in: ['question-1', 'question-2'] } },
       select: { questionId: true },
     })
   })

@@ -104,6 +104,11 @@ export default defineConfig({
     colorWeak: false,
   },
   routes: [
+    {
+      path: '/login',
+      component: './Login',
+      layout: false,
+    },
     { path: '/', redirect: '/subjects' },
     { path: '/dashboard', redirect: '/nursing/dashboard' },
     {
@@ -119,10 +124,21 @@ export default defineConfig({
       component: './Dashboard',
     },
     {
+      path: '/nursing/home-config',
+      name: '首页展示管理',
+      icon: 'NotificationOutlined',
+      component: './HomeConfig',
+    },
+    {
       path: '/nursing/students',
       name: '学生信息管理',
       icon: 'TeamOutlined',
       component: './Students',
+    },
+    {
+      path: '/nursing/students/:openId',
+      component: './StudentDetail',
+      hideInMenu: true,
     },
     {
       path: '/nursing/login-users',
@@ -135,6 +151,19 @@ export default defineConfig({
       name: '授权码台账',
       icon: 'SafetyCertificateOutlined',
       component: './LicenseTokens',
+    },
+    {
+      path: '/nursing/admin-audit-logs',
+      name: '后台操作审计',
+      icon: 'AuditOutlined',
+      component: './AdminAuditLogs',
+    },
+    {
+      path: '/nursing/teacher-accounts',
+      name: '老师账号管理',
+      icon: 'UserSwitchOutlined',
+      component: './TeacherAccounts',
+      access: 'canManageTeachers',
     },
     {
       path: '/nursing/problems',

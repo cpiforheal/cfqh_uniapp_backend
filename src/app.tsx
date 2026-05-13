@@ -1,3 +1,4 @@
+import '@/utils/abort-controller'
 import { PropsWithChildren, useEffect } from 'react'
 import Taro from '@tarojs/taro'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'

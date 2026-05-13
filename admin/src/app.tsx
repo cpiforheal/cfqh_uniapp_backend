@@ -1,9 +1,12 @@
 import type React from 'react'
-import { BookOutlined, SafetyCertificateOutlined, UserOutlined } from '@ant-design/icons'
-import { Avatar, Space, Tag, Typography } from 'antd'
+import { BookOutlined, LogoutOutlined, SafetyCertificateOutlined, UserOutlined } from '@ant-design/icons'
+import { Avatar, Button, Space, Tag, Typography } from 'antd'
+import { getAdminSessionToken } from '@/services/adminApi'
+import { logoutAdmin, queryCurrentAdmin, type AdminUser } from '@/services/adminAuth'
 
 interface InitialState {
   name: string
+  currentAdmin?: AdminUser | null
 }
 
 interface RuntimeLayoutParams {
@@ -11,7 +14,13 @@ interface RuntimeLayoutParams {
 }
 
 export async function getInitialState(): Promise<InitialState> {
-  return { name: '医护内容助教' }
+  if (!getAdminSessionToken()) return { name: '医护内容助教', currentAdmin: null }
+  try {
+    const currentAdmin = await queryCurrentAdmin()
+    return { name: currentAdmin.username, currentAdmin }
+  } catch {
+    return { name: '医护内容助教', currentAdmin: null }
+  }
 }
 
 export const layout = ({ initialState }: RuntimeLayoutParams) => ({
@@ -50,9 +59,25 @@ export const layout = ({ initialState }: RuntimeLayoutParams) => ({
   rightContentRender: () => (
     <Space size={10} className="nursing-admin-right-content">
       <Tag className="nursing-admin-guardrail-tag" color="cyan" icon={<SafetyCertificateOutlined />}>非医疗建议 · 自学辅助</Tag>
-      <Typography.Text className="nursing-admin-user-name" type="secondary">{initialState?.name ?? '内容管理员'}</Typography.Text>
+      <Typography.Text className="nursing-admin-user-name" type="secondary">{initialState?.currentAdmin?.username ?? initialState?.name ?? '内容管理员'}</Typography.Text>
+      <Button
+        size="small"
+        icon={<LogoutOutlined />}
+        onClick={async () => {
+          await logoutAdmin()
+          window.location.replace('/login')
+        }}
+      >
+        退出
+      </Button>
     </Space>
   ),
+  onPageChange: () => {
+    const pathname = window.location.pathname
+    if (pathname !== '/login' && !initialState?.currentAdmin) {
+      window.location.replace('/login')
+    }
+  },
   pageTitleRender: (_props: unknown, _defaultPageTitle: string, info: { title?: string }) => {
     return info?.title ? `${info.title} - 医护自学资源后台` : '医护自学资源后台'
   },

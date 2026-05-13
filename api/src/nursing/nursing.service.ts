@@ -3,16 +3,32 @@ import { ConfigService } from '@nestjs/config'
 import { ContentStatus, LicenseStatus, Prisma, SubjectCode } from '@prisma/client'
 import { createHmac, randomInt } from 'node:crypto'
 import { stringify } from 'node:querystring'
+import { AdminContextService } from '../common/admin-context'
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateDailyPracticeDto } from './dto/create-daily-practice.dto'
 import { NURSING_MODULES, getNursingModule } from './modules'
 import { ParsedQuestionImportItem, previewQuestionImport } from './question-import'
+
+type ActivationAttemptSnapshot = {
+  id: string
+  codeInput: string
+  openId: string
+  result: string
+  reason: string
+  tokenId?: string | null
+  clientEnv?: string | null
+  platform?: string | null
+  device?: string | null
+  ip?: string | null
+  createdAt: Date
+}
 
 @Injectable()
 export class NursingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly adminContext: AdminContextService,
   ) {}
 
   private parseOptions(optionsJson?: string | null) {
@@ -129,6 +145,57 @@ export class NursingService {
   private isEffectiveBoundLicense(token?: { status: LicenseStatus; expiresAt?: Date | null; boundOpenId?: string | null } | null, openId?: string) {
     if (!token) return false
     return this.getEffectiveLicenseStatus(token) === LicenseStatus.bound && (!openId || token.boundOpenId === openId)
+  }
+
+  private getActivationRisk(failedAttemptCount: number, distinctOpenIdCount: number, otherOpenIdTried = false) {
+    const riskLevel = otherOpenIdTried || distinctOpenIdCount > 1
+      ? 'high'
+      : failedAttemptCount >= 3
+        ? 'medium'
+        : 'normal'
+    const riskReason = riskLevel === 'high'
+      ? '存在不同账号尝试'
+      : riskLevel === 'medium'
+        ? '失败尝试较多'
+        : ''
+    return { riskLevel, riskReason }
+  }
+
+  private summarizeActivationAttempts(attempts: ActivationAttemptSnapshot[], boundOpenId?: string | null) {
+    const distinctOpenIds = new Set(attempts.map((attempt) => attempt.openId).filter(Boolean))
+    const failedAttemptCount = attempts.filter((attempt) => attempt.result !== 'success').length
+    const successAttemptCount = attempts.filter((attempt) => attempt.result === 'success').length
+    const lastAttempt = attempts[0]
+    const otherOpenIdTried = Boolean(boundOpenId && attempts.some((attempt) => attempt.openId && attempt.openId !== boundOpenId))
+    const risk = this.getActivationRisk(failedAttemptCount, distinctOpenIds.size, otherOpenIdTried)
+
+    return {
+      attemptCount: attempts.length,
+      successAttemptCount,
+      failedAttemptCount,
+      distinctOpenIdCount: distinctOpenIds.size,
+      lastAttemptAt: lastAttempt?.createdAt ?? null,
+      lastAttemptResult: lastAttempt?.result ?? null,
+      lastAttemptReason: lastAttempt?.reason ?? null,
+      ...risk,
+    }
+  }
+
+  private async recordAdminAudit(action: string, target?: string, detail?: Record<string, unknown>) {
+    const currentAdmin = this.adminContext.getCurrentAdmin()
+    try {
+      await this.prisma.adminAuditLog.create({
+        data: {
+          action,
+          target,
+          detail: detail ? JSON.stringify(detail) : undefined,
+          operatorId: currentAdmin?.id === 'legacy-admin' ? undefined : currentAdmin?.id,
+          operator: currentAdmin?.username || 'admin',
+        },
+      })
+    } catch (error) {
+      console.warn('record admin audit log failed', error)
+    }
   }
 
   private async disableDuplicateBoundTokens(openId: string, keepTokenId: string) {
@@ -658,16 +725,22 @@ export class NursingService {
     }
 
     if (id) {
-      return videoAsset.upsert({ where: { id }, update: data, create: { id, ...data } })
+      const saved = await videoAsset.upsert({ where: { id }, update: data, create: { id, ...data } })
+      await this.recordAdminAudit('asset.upsert', id, { filename, status })
+      return saved
     }
 
-    return videoAsset.create({ data })
+    const created = await videoAsset.create({ data })
+    await this.recordAdminAudit('asset.create', created?.id, { filename, status })
+    return created
   }
 
   async deleteAdminAsset(id: string) {
     const videoAsset = (this.prisma as any).videoAsset
     if (!videoAsset?.update) return null
-    return videoAsset.update({ where: { id }, data: { status: ContentStatus.offline } })
+    const updated = await videoAsset.update({ where: { id }, data: { status: ContentStatus.offline } })
+    await this.recordAdminAudit('asset.offline', id, { filename: updated?.filename })
+    return updated
   }
 
   async adminStudents(keyword?: string) {
@@ -746,47 +819,162 @@ export class NursingService {
       orderBy: [{ lastLoginAt: 'desc' }, { createdAt: 'desc' }],
       take: 300,
     })
+    const userIds = users.map((user) => user.id)
+    const openIds = users.map((user) => user.openId)
+    const [
+      practiceGroups,
+      correctGroups,
+      mistakeGroups,
+      favoriteGroups,
+      activationAttemptGroups,
+      recentActivationAttempts,
+    ] = userIds.length > 0
+      ? await Promise.all([
+          this.prisma.practiceRecord.groupBy({
+            by: ['userId'],
+            where: { userId: { in: userIds } },
+            _count: { id: true },
+            _min: { createdAt: true },
+            _max: { createdAt: true },
+          }),
+          this.prisma.practiceRecord.groupBy({
+            by: ['userId', 'isCorrect'],
+            where: { userId: { in: userIds } },
+            _count: { id: true },
+          }),
+          this.prisma.mistake.groupBy({
+            by: ['userId'],
+            where: { userId: { in: userIds } },
+            _sum: { wrongCount: true },
+          }),
+          this.prisma.favorite.groupBy({
+            by: ['userId'],
+            where: { userId: { in: userIds } },
+            _count: { id: true },
+          }),
+          this.prisma.licenseActivationAttempt.groupBy({
+            by: ['openId', 'result'],
+            where: { openId: { in: openIds } },
+            _count: { id: true },
+          }),
+          this.prisma.licenseActivationAttempt.findMany({
+            where: { openId: { in: openIds } },
+            select: {
+              id: true,
+              codeInput: true,
+              openId: true,
+              result: true,
+              reason: true,
+              tokenId: true,
+              clientEnv: true,
+              platform: true,
+              device: true,
+              ip: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+            take: Math.min(Math.max(openIds.length * 5, 100), 1500),
+          }),
+        ])
+      : [[], [], [], [], [], []]
+    const practiceByUser = new Map(practiceGroups.map((group) => [group.userId, group]))
+    const correctByUser = new Map(
+      correctGroups
+        .filter((group) => group.isCorrect)
+        .map((group) => [group.userId, group._count.id]),
+    )
+    const mistakeByUser = new Map(mistakeGroups.map((group) => [group.userId, group._sum.wrongCount || 0]))
+    const favoriteByUser = new Map(favoriteGroups.map((group) => [group.userId, group._count.id]))
+    const activationCountByOpenId = new Map<string, { attemptCount: number; successAttemptCount: number; failedAttemptCount: number }>()
+    for (const group of activationAttemptGroups) {
+      const summary = activationCountByOpenId.get(group.openId) || { attemptCount: 0, successAttemptCount: 0, failedAttemptCount: 0 }
+      summary.attemptCount += group._count.id
+      if (group.result === 'success') summary.successAttemptCount += group._count.id
+      else summary.failedAttemptCount += group._count.id
+      activationCountByOpenId.set(group.openId, summary)
+    }
+    const attemptsByOpenId = new Map<string, ActivationAttemptSnapshot[]>()
+    for (const attempt of recentActivationAttempts) {
+      const attempts = attemptsByOpenId.get(attempt.openId) || []
+      if (attempts.length < 5) attempts.push(attempt)
+      attemptsByOpenId.set(attempt.openId, attempts)
+    }
 
-    return users.map((user) => ({
-      userId: user.id,
-      openId: user.openId,
-      nickname: user.nickname || '微信用户',
-      avatarUrl: user.avatarUrl,
-      loginCount: user.loginCount,
-      firstLoginAt: user.createdAt,
-      lastLoginAt: user.lastLoginAt,
-      lastClientEnv: user.lastClientEnv,
-      lastPlatform: user.lastPlatform,
-      lastDevice: user.lastDevice,
-      lastSdkVersion: user.lastSdkVersion,
-      authorization: user.authorization
-        ? {
-            activatedAt: user.authorization.activatedAt,
-            expiresAt: user.authorization.expiresAt,
-            licenseToken: user.authorization.licenseToken
-              ? {
-                  id: user.authorization.licenseToken.id,
-                  code: user.authorization.licenseToken.code,
-                  status: this.getEffectiveLicenseStatus(user.authorization.licenseToken),
-                  boundAt: user.authorization.licenseToken.boundAt,
-                  expiresAt: user.authorization.licenseToken.expiresAt,
-                }
-              : null,
-          }
-        : null,
-      recentLogs: user.loginLogs.map((log) => ({
-        id: log.id,
-        clientEnv: log.clientEnv,
-        platform: log.platform,
-        device: log.device,
-        sdkVersion: log.sdkVersion,
-        appVersion: log.appVersion,
-        source: log.source,
-        ip: log.ip,
-        userAgent: log.userAgent,
-        createdAt: log.createdAt,
-      })),
-    }))
+    return users.map((user) => {
+      const activationSummary = this.summarizeActivationAttempts(attemptsByOpenId.get(user.openId) || [], user.authorization?.licenseToken?.boundOpenId)
+      const activationCounts = activationCountByOpenId.get(user.openId)
+      const failedAttemptCount = activationCounts?.failedAttemptCount ?? activationSummary.failedAttemptCount
+      const aggregateRisk = this.getActivationRisk(failedAttemptCount, activationCounts ? 1 : activationSummary.distinctOpenIdCount)
+      return {
+        userId: user.id,
+        openId: user.openId,
+        nickname: user.nickname || '微信用户',
+        avatarUrl: user.avatarUrl,
+        loginCount: user.loginCount,
+        firstLoginAt: user.createdAt,
+        lastLoginAt: user.lastLoginAt,
+        lastClientEnv: user.lastClientEnv,
+        lastPlatform: user.lastPlatform,
+        lastDevice: user.lastDevice,
+        lastSdkVersion: user.lastSdkVersion,
+        authorization: user.authorization
+          ? {
+              activatedAt: user.authorization.activatedAt,
+              expiresAt: user.authorization.expiresAt,
+              licenseToken: user.authorization.licenseToken
+                ? {
+                    id: user.authorization.licenseToken.id,
+                    code: user.authorization.licenseToken.code,
+                    status: this.getEffectiveLicenseStatus(user.authorization.licenseToken),
+                    boundAt: user.authorization.licenseToken.boundAt,
+                    expiresAt: user.authorization.licenseToken.expiresAt,
+                  }
+                : null,
+            }
+          : null,
+        practiceSummary: {
+          practiceCount: practiceByUser.get(user.id)?._count.id || 0,
+          correctRate: practiceByUser.get(user.id)?._count.id
+            ? Math.round(((correctByUser.get(user.id) || 0) / practiceByUser.get(user.id)!._count.id) * 100)
+            : 0,
+          mistakeCount: mistakeByUser.get(user.id) || 0,
+          favoriteCount: favoriteByUser.get(user.id) || 0,
+          firstPracticeAt: practiceByUser.get(user.id)?._min.createdAt ?? null,
+          lastPracticeAt: practiceByUser.get(user.id)?._max.createdAt ?? null,
+        },
+        activationAttemptSummary: {
+          ...activationSummary,
+          attemptCount: activationCounts?.attemptCount ?? activationSummary.attemptCount,
+          successAttemptCount: activationCounts?.successAttemptCount ?? activationSummary.successAttemptCount,
+          failedAttemptCount,
+          distinctOpenIdCount: activationCounts ? 1 : activationSummary.distinctOpenIdCount,
+          ...aggregateRisk,
+        },
+        recentActivationAttempts: (attemptsByOpenId.get(user.openId) || []).map((attempt) => ({
+          id: attempt.id,
+          codeInput: attempt.codeInput,
+          result: attempt.result,
+          reason: attempt.reason,
+          clientEnv: attempt.clientEnv,
+          platform: attempt.platform,
+          device: attempt.device,
+          ip: attempt.ip,
+          createdAt: attempt.createdAt,
+        })),
+        recentLogs: user.loginLogs.map((log) => ({
+          id: log.id,
+          clientEnv: log.clientEnv,
+          platform: log.platform,
+          device: log.device,
+          sdkVersion: log.sdkVersion,
+          appVersion: log.appVersion,
+          source: log.source,
+          ip: log.ip,
+          userAgent: log.userAgent,
+          createdAt: log.createdAt,
+        })),
+      }
+    })
   }
 
   async adminLicenseTokens(keyword?: string, status?: string) {
@@ -827,22 +1015,112 @@ export class NursingService {
         })
       : []
     const userById = new Map(users.map((user) => [user.id, user]))
+    const tokenIds = tokens.map((token) => token.id)
+    const [activationAttemptGroups, activationOpenIdGroups, activationAttempts] = tokenIds.length > 0
+      ? await Promise.all([
+          this.prisma.licenseActivationAttempt.groupBy({
+            by: ['tokenId', 'result'],
+            where: { tokenId: { in: tokenIds } },
+            _count: { id: true },
+          }),
+          this.prisma.licenseActivationAttempt.groupBy({
+            by: ['tokenId', 'openId'],
+            where: { tokenId: { in: tokenIds } },
+            _count: { id: true },
+          }),
+          this.prisma.licenseActivationAttempt.findMany({
+            where: { tokenId: { in: tokenIds } },
+            select: {
+              id: true,
+              codeInput: true,
+              openId: true,
+              result: true,
+              reason: true,
+              tokenId: true,
+              clientEnv: true,
+              platform: true,
+              device: true,
+              ip: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+            take: Math.min(Math.max(tokenIds.length * 5, 200), 2500),
+          }),
+        ])
+      : [[], [], []]
+    const activationCountByTokenId = new Map<string, { attemptCount: number; successAttemptCount: number; failedAttemptCount: number }>()
+    for (const group of activationAttemptGroups) {
+      if (!group.tokenId) continue
+      const summary = activationCountByTokenId.get(group.tokenId) || { attemptCount: 0, successAttemptCount: 0, failedAttemptCount: 0 }
+      summary.attemptCount += group._count.id
+      if (group.result === 'success') summary.successAttemptCount += group._count.id
+      else summary.failedAttemptCount += group._count.id
+      activationCountByTokenId.set(group.tokenId, summary)
+    }
+    const activationOpenIdsByTokenId = new Map<string, Set<string>>()
+    for (const group of activationOpenIdGroups) {
+      if (!group.tokenId) continue
+      const openIdsForToken = activationOpenIdsByTokenId.get(group.tokenId) || new Set<string>()
+      if (group.openId) openIdsForToken.add(group.openId)
+      activationOpenIdsByTokenId.set(group.tokenId, openIdsForToken)
+    }
+    const attemptsByTokenId = new Map<string, ActivationAttemptSnapshot[]>()
+    for (const attempt of activationAttempts) {
+      if (!attempt.tokenId) continue
+      const attempts = attemptsByTokenId.get(attempt.tokenId) || []
+      if (attempts.length < 10) attempts.push(attempt)
+      attemptsByTokenId.set(attempt.tokenId, attempts)
+    }
 
-    return tokens.map((token) => ({
-      id: token.id,
-      code: token.code,
-      status: this.getEffectiveLicenseStatus(token),
-      subjectScope: token.subjectScope,
-      resourceScope: token.resourceScope,
-      maxBindCount: token.maxBindCount,
-      boundUserId: token.boundUserId,
-      boundOpenId: token.boundOpenId,
-      boundAt: token.boundAt,
-      expiresAt: token.expiresAt,
-      createdAt: token.createdAt,
-      updatedAt: token.updatedAt,
-      user: token.boundUserId ? userById.get(token.boundUserId) || null : null,
-    }))
+    const rows = tokens.map((token) => {
+      const tokenAttempts = attemptsByTokenId.get(token.id) || []
+      const activationSummary = this.summarizeActivationAttempts(tokenAttempts, token.boundOpenId)
+      const activationCounts = activationCountByTokenId.get(token.id)
+      const openIdsForToken = activationOpenIdsByTokenId.get(token.id)
+      const distinctOpenIdCount = openIdsForToken?.size ?? activationSummary.distinctOpenIdCount
+      const failedAttemptCount = activationCounts?.failedAttemptCount ?? activationSummary.failedAttemptCount
+      const otherOpenIdTried = Boolean(token.boundOpenId && Array.from(openIdsForToken || []).some((openId) => openId !== token.boundOpenId))
+      const aggregateRisk = this.getActivationRisk(failedAttemptCount, distinctOpenIdCount, otherOpenIdTried)
+      return {
+        id: token.id,
+        code: token.code,
+        status: this.getEffectiveLicenseStatus(token),
+        subjectScope: token.subjectScope,
+        resourceScope: token.resourceScope,
+        maxBindCount: token.maxBindCount,
+        boundUserId: token.boundUserId,
+        boundOpenId: token.boundOpenId,
+        boundAt: token.boundAt,
+        expiresAt: token.expiresAt,
+        createdAt: token.createdAt,
+        updatedAt: token.updatedAt,
+        user: token.boundUserId ? userById.get(token.boundUserId) || null : null,
+        activationAttemptSummary: {
+          ...activationSummary,
+          attemptCount: activationCounts?.attemptCount ?? activationSummary.attemptCount,
+          successAttemptCount: activationCounts?.successAttemptCount ?? activationSummary.successAttemptCount,
+          failedAttemptCount,
+          distinctOpenIdCount,
+          ...aggregateRisk,
+        },
+        recentActivationAttempts: tokenAttempts.slice(0, 5).map((attempt) => ({
+          id: attempt.id,
+          codeInput: attempt.codeInput,
+          openId: attempt.openId,
+          result: attempt.result,
+          reason: attempt.reason,
+          clientEnv: attempt.clientEnv,
+          platform: attempt.platform,
+          device: attempt.device,
+          ip: attempt.ip,
+          createdAt: attempt.createdAt,
+        })),
+      }
+    })
+
+    return normalizedStatus === 'risk'
+      ? rows.filter((row) => row.activationAttemptSummary.riskLevel !== 'normal')
+      : rows
   }
 
   async issueLicenseToken(dto: Record<string, unknown>) {
@@ -855,6 +1133,7 @@ export class NursingService {
         status: LicenseStatus.unused,
         expiresAt,
       })
+      await this.recordAdminAudit('license.issue_unbound', created.id, { code: created.code, expiresAt })
       return {
         userId: null,
         openId: null,
@@ -873,6 +1152,7 @@ export class NursingService {
 
     if (currentToken && this.isEffectiveBoundLicense(currentToken, user.openId)) {
       await this.disableDuplicateBoundTokens(user.openId, currentToken.id)
+      await this.recordAdminAudit('license.reuse_existing', currentToken.id, { openId: user.openId })
       return {
         userId: user.id,
         openId: user.openId,
@@ -907,6 +1187,7 @@ export class NursingService {
       },
     })
 
+    await this.recordAdminAudit('license.issue_bound', created.id, { openId: user.openId, expiresAt })
     return {
       userId: user.id,
       openId: user.openId,
@@ -915,10 +1196,12 @@ export class NursingService {
   }
 
   async disableLicenseToken(id: string) {
-    return this.prisma.licenseToken.update({
+    const updated = await this.prisma.licenseToken.update({
       where: { id },
       data: { status: LicenseStatus.disabled },
     })
+    await this.recordAdminAudit('license.disable', id, { code: updated.code, boundOpenId: updated.boundOpenId })
+    return updated
   }
 
   async deleteLicenseToken(id: string) {
@@ -930,7 +1213,9 @@ export class NursingService {
     if (token.authorization.length > 0) throw new BadRequestException('该授权码仍关联账号授权，请先禁用或更换该账号授权后再删除')
     if (this.getEffectiveLicenseStatus(token) === LicenseStatus.bound) throw new BadRequestException('已绑定且仍有效的授权码不能直接删除')
 
-    return this.prisma.licenseToken.delete({ where: { id } })
+    const deleted = await this.prisma.licenseToken.delete({ where: { id } })
+    await this.recordAdminAudit('license.delete', id, { code: deleted.code, status: deleted.status })
+    return deleted
   }
 
   async extendLicenseToken(id: string, dto: Record<string, unknown>) {
@@ -945,13 +1230,15 @@ export class NursingService {
     const base = token.expiresAt && token.expiresAt > new Date() ? token.expiresAt : new Date()
     const nextExpiresAt = new Date(base.getTime() + extendDays * 24 * 60 * 60 * 1000)
 
-    return this.prisma.licenseToken.update({
+    const updated = await this.prisma.licenseToken.update({
       where: { id },
       data: {
         expiresAt: nextExpiresAt,
         status: token.status === LicenseStatus.expired ? LicenseStatus.bound : token.status,
       },
     })
+    await this.recordAdminAudit('license.extend', id, { code: updated.code, extendDays, expiresAt: nextExpiresAt })
+    return updated
   }
 
   async adminQuestions() {
@@ -1030,21 +1317,27 @@ export class NursingService {
     }
 
     if (id) {
-      return this.prisma.videoLesson.upsert({
+      const saved = await this.prisma.videoLesson.upsert({
         where: { id },
         update: data,
         create: { id, ...data },
       })
+      await this.recordAdminAudit('video.upsert', saved.id, { title, status })
+      return saved
     }
 
-    return this.prisma.videoLesson.create({ data })
+    const created = await this.prisma.videoLesson.create({ data })
+    await this.recordAdminAudit('video.create', created.id, { title, status })
+    return created
   }
 
   async deleteAdminVideo(id: string) {
-    return this.prisma.videoLesson.update({
+    const updated = await this.prisma.videoLesson.update({
       where: { id },
       data: { status: ContentStatus.offline },
     })
+    await this.recordAdminAudit('video.offline', id, { title: updated.title })
+    return updated
   }
 
   async adminDailyPractice() {
@@ -1093,14 +1386,18 @@ export class NursingService {
     }
 
     if (id) {
-      return this.prisma.question.upsert({
+      const saved = await this.prisma.question.upsert({
         where: { id },
         update: data,
         create: { id, ...data },
       })
+      await this.recordAdminAudit('question.upsert', saved.id, { title, status })
+      return saved
     }
 
-    return this.prisma.question.create({ data })
+    const created = await this.prisma.question.create({ data })
+    await this.recordAdminAudit('question.create', created.id, { title, status })
+    return created
   }
 
   async previewQuestionImport(questionDoc: Buffer, questionDocName: string, answerDoc?: Buffer) {
@@ -1139,10 +1436,12 @@ export class NursingService {
   }
 
   async deleteAdminQuestion(id: string) {
-    return this.prisma.question.update({
+    const updated = await this.prisma.question.update({
       where: { id },
       data: { status: ContentStatus.offline },
     })
+    await this.recordAdminAudit('question.offline', id, { title: updated.title })
+    return updated
   }
 
   async upsertDailyPractice(dto: CreateDailyPracticeDto) {
@@ -1260,6 +1559,7 @@ export class NursingService {
       })
       tokens.push({ code, expiresAt: expiresAt.toISOString() })
     }
+    await this.recordAdminAudit('license.batch_generate', undefined, { count, expiresAt, groupTag: dto.groupTag || null })
     return tokens
   }
 
@@ -1384,7 +1684,7 @@ export class NursingService {
     const fifteenDaysLater = new Date(now)
     fifteenDaysLater.setDate(now.getDate() + 15)
 
-    const [inactiveUsers, expiringTokens, hardQuestions] = await Promise.all([
+    const [inactiveUsers, expiringTokens, hardQuestions, activationAttempts] = await Promise.all([
       this.prisma.user.findMany({
         where: {
           authorization: { isNot: null },
@@ -1403,6 +1703,31 @@ export class NursingService {
         by: ['questionId'],
         where: { createdAt: { gte: sevenDaysAgo } },
         _count: { id: true },
+      }),
+      this.prisma.licenseActivationAttempt.findMany({
+        where: {
+          createdAt: { gte: sevenDaysAgo },
+          OR: [
+            { reason: 'bound_to_other_account' },
+            { reason: 'not_found' },
+            { result: 'failed' },
+          ],
+        },
+        select: {
+          id: true,
+          codeInput: true,
+          openId: true,
+          result: true,
+          reason: true,
+          tokenId: true,
+          clientEnv: true,
+          platform: true,
+          device: true,
+          ip: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 200,
       }),
     ])
 
@@ -1428,6 +1753,36 @@ export class NursingService {
       ? await this.prisma.question.findMany({ where: { id: { in: questionIds } }, select: { id: true, title: true } })
       : []
     const titleMap = new Map(questionTitles.map((q) => [q.id, q.title]))
+    const tokenAttempts = new Map<string, ActivationAttemptSnapshot[]>()
+    const invalidAttempts = new Map<string, ActivationAttemptSnapshot[]>()
+    for (const attempt of activationAttempts) {
+      if (attempt.tokenId) {
+        const attempts = tokenAttempts.get(attempt.tokenId) || []
+        attempts.push(attempt)
+        tokenAttempts.set(attempt.tokenId, attempts)
+      }
+      if (attempt.reason === 'not_found') {
+        const attempts = invalidAttempts.get(attempt.openId) || []
+        attempts.push(attempt)
+        invalidAttempts.set(attempt.openId, attempts)
+      }
+    }
+    const sharedCodeRisks = Array.from(tokenAttempts.entries())
+      .map(([tokenId, attempts]) => ({
+        tokenId,
+        distinctOpenIdCount: new Set(attempts.map((attempt) => attempt.openId)).size,
+        attemptCount: attempts.length,
+        lastReason: attempts[0]?.reason || '',
+        lastAttemptAt: attempts[0]?.createdAt.toISOString() || null,
+      }))
+      .filter((item) => item.distinctOpenIdCount > 1 || item.lastReason === 'bound_to_other_account')
+    const invalidCodeRisks = Array.from(invalidAttempts.entries())
+      .map(([openId, attempts]) => ({
+        openId,
+        attemptCount: attempts.length,
+        lastAttemptAt: attempts[0]?.createdAt.toISOString() || null,
+      }))
+      .filter((item) => item.attemptCount >= 3)
 
     return {
       inactive: inactiveUsers.map((u) => ({
@@ -1444,6 +1799,24 @@ export class NursingService {
         ...q,
         title: titleMap.get(q.questionId) || q.questionId,
       })),
+      activationAnomalies: [
+        ...sharedCodeRisks.map((item) => ({
+          type: 'shared_code',
+          message: `同一通行码被 ${item.distinctOpenIdCount} 个账号尝试`,
+          tokenId: item.tokenId,
+          openId: null,
+          count: item.attemptCount,
+          lastAttemptAt: item.lastAttemptAt,
+        })),
+        ...invalidCodeRisks.map((item) => ({
+          type: 'invalid_code',
+          message: `同一账号近 7 天输入 ${item.attemptCount} 次无效码`,
+          tokenId: null,
+          openId: item.openId,
+          count: item.attemptCount,
+          lastAttemptAt: item.lastAttemptAt,
+        })),
+      ].slice(0, 10),
     }
   }
 

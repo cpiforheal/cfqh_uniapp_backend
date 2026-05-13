@@ -3,6 +3,17 @@ import { LicenseStatus, SubjectCode } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { ActivateLicenseDto } from './dto/activate-license.dto'
 
+type ActivationAttemptMetadata = {
+  clientEnv?: string
+  platform?: string
+  device?: string
+  sdkVersion?: string
+  appVersion?: string
+  source?: string
+  ip?: string
+  userAgent?: string
+}
+
 @Injectable()
 export class LicenseService {
   constructor(private readonly prisma: PrismaService) {}
@@ -34,16 +45,73 @@ export class LicenseService {
     return Array.from(candidates)
   }
 
-  async activate(dto: ActivateLicenseDto, openId: string) {
+  private cleanText(value?: string) {
+    const trimmed = String(value || '').trim()
+    return trimmed || undefined
+  }
+
+  private async recordActivationAttempt(params: {
+    dto: ActivateLicenseDto
+    openId: string
+    userId?: string
+    token?: {
+      id: string
+      status: LicenseStatus
+    } | null
+    codeNormalized?: string
+    result: 'success' | 'failed'
+    reason: string
+    metadata?: ActivationAttemptMetadata
+  }) {
+    try {
+      await this.prisma.licenseActivationAttempt.create({
+        data: {
+          codeInput: String(params.dto.code || '').trim(),
+          codeNormalized: params.codeNormalized,
+          tokenId: params.token?.id,
+          userId: params.userId,
+          openId: params.openId,
+          result: params.result,
+          reason: params.reason,
+          tokenStatus: params.token?.status,
+          clientEnv: this.cleanText(params.metadata?.clientEnv),
+          platform: this.cleanText(params.metadata?.platform),
+          device: this.cleanText(params.metadata?.device),
+          sdkVersion: this.cleanText(params.metadata?.sdkVersion),
+          appVersion: this.cleanText(params.metadata?.appVersion),
+          source: this.cleanText(params.metadata?.source),
+          ip: this.cleanText(params.metadata?.ip),
+          userAgent: this.cleanText(params.metadata?.userAgent),
+        },
+      })
+    } catch (error) {
+      console.warn('record license activation attempt failed', error)
+    }
+  }
+
+  async activate(dto: ActivateLicenseDto, openId: string, metadata?: ActivationAttemptMetadata) {
     const user = await this.ensureUser(openId)
 
     const codeCandidates = this.normalizeLicenseCode(dto.code)
     const token = await this.prisma.licenseToken.findFirst({ where: { code: { in: codeCandidates } } })
-    if (!token) return { authorized: false, reason: 'not_found', authorization: null }
+    const codeNormalized = token?.code || codeCandidates[0]
+    if (!token) {
+      await this.recordActivationAttempt({ dto, openId, userId: user.id, codeNormalized, result: 'failed', reason: 'not_found', metadata })
+      return { authorized: false, reason: 'not_found', authorization: null }
+    }
     const expired = Boolean(token.expiresAt && token.expiresAt <= new Date())
-    if (token.status === LicenseStatus.disabled) return { authorized: false, reason: 'disabled', authorization: null }
-    if (token.status === LicenseStatus.expired || expired) return { authorized: false, reason: 'expired', authorization: null }
-    if (token.boundOpenId && token.boundOpenId !== openId) return { authorized: false, reason: 'bound_to_other_account', authorization: null }
+    if (token.status === LicenseStatus.disabled) {
+      await this.recordActivationAttempt({ dto, openId, userId: user.id, token, codeNormalized, result: 'failed', reason: 'disabled', metadata })
+      return { authorized: false, reason: 'disabled', authorization: null }
+    }
+    if (token.status === LicenseStatus.expired || expired) {
+      await this.recordActivationAttempt({ dto, openId, userId: user.id, token, codeNormalized, result: 'failed', reason: 'expired', metadata })
+      return { authorized: false, reason: 'expired', authorization: null }
+    }
+    if (token.boundOpenId && token.boundOpenId !== openId) {
+      await this.recordActivationAttempt({ dto, openId, userId: user.id, token, codeNormalized, result: 'failed', reason: 'bound_to_other_account', metadata })
+      return { authorized: false, reason: 'bound_to_other_account', authorization: null }
+    }
 
     await this.prisma.userAuthorization.upsert({
       where: { userId: user.id },
@@ -80,6 +148,7 @@ export class LicenseService {
       data: { status: LicenseStatus.disabled },
     })
 
+    await this.recordActivationAttempt({ dto, openId, userId: user.id, token, codeNormalized, result: 'success', reason: 'authorized', metadata })
     return this.status(openId)
   }
 

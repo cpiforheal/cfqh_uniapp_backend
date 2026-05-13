@@ -97,6 +97,7 @@ export function queryAdminAlerts() {
     inactive: Array<{ openId: string; nickname: string; lastLoginAt: string | null }>
     expiringTokens: Array<{ code: string; boundOpenId: string | null; expiresAt: string }>
     lowAccuracyQuestions: Array<{ questionId: string; title: string; total: number; wrongRate: number }>
+    activationAnomalies?: Array<{ type: string; message: string; tokenId?: string | null; openId?: string | null; count: number; lastAttemptAt?: string | null }>
   }>('/admin/alerts')
 }
 

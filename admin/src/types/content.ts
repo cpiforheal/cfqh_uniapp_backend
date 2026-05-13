@@ -199,6 +199,33 @@ export interface AdminLicenseTokenRow {
     nickname?: string | null
     avatarUrl?: string | null
   } | null
+  activationAttemptSummary?: AdminActivationAttemptSummary
+  recentActivationAttempts?: AdminActivationAttemptRow[]
+}
+
+export interface AdminActivationAttemptSummary {
+  attemptCount: number
+  successAttemptCount: number
+  failedAttemptCount: number
+  distinctOpenIdCount: number
+  lastAttemptAt?: string | null
+  lastAttemptResult?: string | null
+  lastAttemptReason?: string | null
+  riskLevel: 'normal' | 'medium' | 'high'
+  riskReason?: string | null
+}
+
+export interface AdminActivationAttemptRow {
+  id: string
+  codeInput?: string | null
+  openId?: string | null
+  result: string
+  reason: string
+  clientEnv?: string | null
+  platform?: string | null
+  device?: string | null
+  ip?: string | null
+  createdAt: string
 }
 
 export interface AdminLoginUserRow {
@@ -224,6 +251,16 @@ export interface AdminLoginUserRow {
       expiresAt?: string | null
     } | null
   } | null
+  practiceSummary?: {
+    practiceCount: number
+    correctRate: number
+    mistakeCount: number
+    favoriteCount: number
+    firstPracticeAt?: string | null
+    lastPracticeAt?: string | null
+  }
+  activationAttemptSummary?: AdminActivationAttemptSummary
+  recentActivationAttempts?: AdminActivationAttemptRow[]
   recentLogs: Array<{
     id: string
     clientEnv?: string | null

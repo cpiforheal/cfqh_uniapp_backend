@@ -25,6 +25,16 @@ enum SubjectCode {
   math
 }
 
+enum AdminRole {
+  super_admin
+  teacher
+}
+
+enum AdminUserStatus {
+  active
+  disabled
+}
+
 enum QuestionType {
   single_choice
   multiple_choice
@@ -51,6 +61,7 @@ model User {
   favorites        Favorite[]
   mistakes         Mistake[]
   loginLogs        UserLoginLog[]
+  activationAttempts LicenseActivationAttempt[]
   videoPlayRecords VideoPlayRecord[] @relation("VideoPlayRecords")
 }
 
@@ -89,6 +100,36 @@ model LicenseToken {
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
   authorization UserAuthorization[]
+  activationAttempts LicenseActivationAttempt[]
+}
+
+model LicenseActivationAttempt {
+  id             String        @id @default(cuid())
+  codeInput      String
+  codeNormalized String?
+  tokenId        String?
+  userId         String?
+  openId         String
+  result         String
+  reason         String
+  tokenStatus    String?
+  clientEnv      String?
+  platform       String?
+  device         String?
+  sdkVersion     String?
+  appVersion     String?
+  source         String?
+  ip             String?
+  userAgent      String?
+  createdAt      DateTime      @default(now())
+  user           User?         @relation(fields: [userId], references: [id])
+  licenseToken   LicenseToken? @relation(fields: [tokenId], references: [id])
+
+  @@index([openId])
+  @@index([tokenId])
+  @@index([userId])
+  @@index([reason])
+  @@index([createdAt])
 }
 
 model UserAuthorization {
@@ -287,14 +328,46 @@ model VideoPlayRecord {
 }
 
 model AdminAuditLog {
-  id        String   @id @default(cuid())
-  action    String
-  target    String?
-  detail    String?
-  operator  String   @default("admin")
-  ip        String?
-  createdAt DateTime @default(now())
+  id         String     @id @default(cuid())
+  action     String
+  target     String?
+  detail     String?
+  operatorId String?
+  operator   String     @default("admin")
+  ip         String?
+  createdAt  DateTime   @default(now())
+  adminUser  AdminUser? @relation(fields: [operatorId], references: [id])
 
   @@index([createdAt])
   @@index([action])
+  @@index([operatorId])
+}
+
+model AdminUser {
+  id           String          @id @default(cuid())
+  username     String          @unique
+  passwordHash String
+  role         AdminRole       @default(teacher)
+  status       AdminUserStatus @default(active)
+  lastLoginAt  DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  sessions     AdminSession[]
+  auditLogs    AdminAuditLog[]
+
+  @@index([role])
+  @@index([status])
+}
+
+model AdminSession {
+  id          String    @id @default(cuid())
+  tokenHash   String    @unique
+  adminUserId String
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  lastUsedAt  DateTime?
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id])
+
+  @@index([adminUserId])
+  @@index([expiresAt])
 }

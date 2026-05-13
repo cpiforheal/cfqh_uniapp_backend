@@ -186,6 +186,39 @@ export default function ProblemImportPage() {
     }
   }
 
+  async function handleCommitAndPublish() {
+    if (previewItems.length === 0) {
+      message.warning('请先完成解析预览')
+      return
+    }
+    const publishableItems = previewItems.filter((item) => item.issues.length === 0)
+    if (publishableItems.length === 0) {
+      message.warning('没有零问题的题目可直接发布，请先导入为草稿后逐个处理')
+      return
+    }
+    setCommitting(true)
+    try {
+      const result = await commitQuestionImport(publishableItems.map((item) => ({ ...item, status: 'published' as const })) as any)
+      if (result.failed > 0) {
+        message.warning(`已发布 ${result.imported} 道，失败 ${result.failed} 道`)
+      } else {
+        message.success(`已直接发布 ${result.imported} 道题目，学生端即刻可见`)
+      }
+      const remainingItems = previewItems.filter((item) => item.issues.length > 0 && item.issues.every((issue) => issue.level !== 'error'))
+      if (remainingItems.length > 0) {
+        message.info(`另有 ${remainingItems.length} 道需复核题目未发布，可在题目列表中处理`)
+      }
+      window.location.href = '/nursing/problems/list'
+    } catch (error) {
+      console.warn('commit and publish failed', error)
+      message.error(getImportErrorMessage(error))
+    } finally {
+      setCommitting(false)
+    }
+  }
+
+  const publishableCount = previewItems.filter((item) => item.issues.length === 0).length
+
   return (
     <SubjectAwarePageContainer title="Docx 题库导入" content="老师上传题目文档和答案解析文档，系统先解析预览，再导入为题库草稿。">
       <Alert
@@ -233,6 +266,9 @@ export default function ProblemImportPage() {
             <Space>
               <Button type="primary" icon={<InboxOutlined />} loading={previewing} onClick={handlePreview}>解析预览</Button>
               <Button disabled={!preview} loading={committing} onClick={handleCommit}>导入为草稿</Button>
+              <Button disabled={!preview || publishableCount === 0} loading={committing} type="primary" ghost onClick={handleCommitAndPublish}>
+                一键发布无问题题目{publishableCount > 0 ? `（${publishableCount} 道）` : ''}
+              </Button>
             </Space>
           </Space>
         </ProCard>

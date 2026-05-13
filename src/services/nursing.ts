@@ -421,7 +421,7 @@ export async function activateLicense(code: string) {
   const openId = await ensureLogin()
   const result = await request<LicenseStatusResult>('/license/activate', {
     method: 'POST',
-    data: { ...(openId ? { openId } : {}), code },
+    data: { ...(openId ? { openId } : {}), code, ...getClientLoginPayload() },
   })
 
   if (result?.authorized) {

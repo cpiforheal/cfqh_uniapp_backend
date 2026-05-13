@@ -77,6 +77,17 @@ export default function VideoLessonsPage() {
   const [activeModuleCode, setActiveModuleCode] = useState<string>('all')
   const [uploading, setUploading] = useState(false)
   const [uploadPercent, setUploadPercent] = useState(0)
+  const [previewUrl, setPreviewUrl] = useState('')
+  const [previewOpen, setPreviewOpen] = useState(false)
+
+  function handlePreviewPlay(url?: string) {
+    if (!url) {
+      message.warning('该视频暂无播放地址')
+      return
+    }
+    setPreviewUrl(url)
+    setPreviewOpen(true)
+  }
 
   function reload() { actionRef.current?.reload() }
 
@@ -251,6 +262,7 @@ export default function VideoLessonsPage() {
       valueType: 'option',
       width: 150,
       render: (_, record) => [
+        <a key="preview" onClick={() => handlePreviewPlay(record.videoUrl)}>试播</a>,
         <a key="edit" onClick={() => record.onEdit?.()}>编辑</a>,
         <Popconfirm key="publish" title={record.status === 'published' ? '确认下线该视频？' : '确认发布该视频？'} description="发布后小程序视频页可见；下线后不建议继续分发该素材。" onConfirm={() => record.onPublish?.()} okText="确认" cancelText="取消">
           <a>{record.status === 'published' ? '下线' : '发布'}</a>
@@ -362,6 +374,25 @@ export default function VideoLessonsPage() {
           <Form.Item name="status" label="状态"><Select options={statusOptions} /></Form.Item>
         </Form>
       </Drawer>
+      <Modal
+        title="视频试播"
+        open={previewOpen}
+        onCancel={() => setPreviewOpen(false)}
+        footer={null}
+        width={720}
+        destroyOnClose
+      >
+        {previewUrl ? (
+          <video
+            src={previewUrl}
+            controls
+            autoPlay
+            style={{ width: '100%', maxHeight: 420, borderRadius: 8, background: '#000' }}
+          />
+        ) : (
+          <Empty description="无播放地址" />
+        )}
+      </Modal>
     </SubjectAwarePageContainer>
   )
 }

@@ -8,6 +8,7 @@ export const MINIAPP_ENV = {
   useCloudGateway: process.env.TARO_APP_USE_CLOUD_GATEWAY !== 'false',
   cloudGatewayName: process.env.TARO_APP_CLOUD_GATEWAY_NAME || 'nursingGateway',
   useMockFallback: process.env.TARO_APP_USE_MOCK_FALLBACK === 'true',
+  debugApi: process.env.TARO_APP_DEBUG_API === 'true',
   devOpenId: process.env.TARO_APP_DEV_OPEN_ID || '',
   devTokenCode: process.env.TARO_APP_DEV_TOKEN_CODE || '',
   skipWechatLogin: process.env.TARO_APP_SKIP_WECHAT_LOGIN === 'true',

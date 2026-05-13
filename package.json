@@ -10,6 +10,9 @@
     "build:weapp": "taro build --type weapp",
     "build:weapp:local": "node scripts/weapp-local-dev.mjs",
     "build:weapp:devtools": "CFQH_LOCAL_TARGET=devtools node scripts/weapp-local-dev.mjs",
+    "release:preflight": "node scripts/release-preflight.mjs",
+    "release:preflight:prod": "node scripts/release-preflight.mjs --production --strict-git",
+    "check:miniapp-dist": "node scripts/check-miniapp-dist.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

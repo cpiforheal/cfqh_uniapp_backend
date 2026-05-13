@@ -3,9 +3,12 @@ import { NestFactory } from '@nestjs/core'
 import { NestExpressApplication } from '@nestjs/platform-express'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import { AppModule } from './app.module'
+import { assertProductionEnv } from './common/production-env'
 import { PrismaService } from './prisma/prisma.service'
 
 async function bootstrap() {
+  assertProductionEnv()
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false })
   app.useBodyParser('json', { limit: '10mb' })
   app.useBodyParser('urlencoded', { extended: true, limit: '10mb' })

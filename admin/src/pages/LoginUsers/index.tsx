@@ -4,6 +4,7 @@ import { Avatar, Button, Col, Empty, Input, Row, Space, Tag, Typography, message
 import { useMemo, useRef, useState } from 'react'
 import type { ActionType } from '@ant-design/pro-components'
 import { SubjectAwarePageContainer } from '@/components/SubjectAwarePageContainer'
+import { describeAdminFetchError } from '@/services/adminApi'
 import { queryAdminLoginUsers } from '@/services/adminNursing'
 import type { AdminLoginUserRow } from '@/types/content'
 
@@ -26,6 +27,27 @@ function maskLicenseCode(code?: string | null) {
   return `${code.slice(0, 4)}****${code.slice(-4)}`
 }
 
+function activationReasonText(reason?: string | null) {
+  if (reason === 'authorized') return '激活成功'
+  if (reason === 'not_found') return '无效码'
+  if (reason === 'disabled') return '已禁用'
+  if (reason === 'expired') return '已过期'
+  if (reason === 'bound_to_other_account') return '绑定他人'
+  return reason || '-'
+}
+
+function activationResultTag(result?: string | null, reason?: string | null) {
+  if (!result) return <Tag>无尝试</Tag>
+  if (result === 'success') return <Tag color="green">{activationReasonText(reason)}</Tag>
+  return <Tag color="red">{activationReasonText(reason)}</Tag>
+}
+
+function riskTag(riskLevel?: string | null, riskReason?: string | null) {
+  if (riskLevel === 'high') return <Tag color="red">{riskReason || '高风险'}</Tag>
+  if (riskLevel === 'medium') return <Tag color="orange">{riskReason || '需关注'}</Tag>
+  return <Tag>正常</Tag>
+}
+
 export default function LoginUsersPage() {
   const actionRef = useRef<ActionType>()
   const [keyword, setKeyword] = useState('')
@@ -37,7 +59,8 @@ export default function LoginUsersPage() {
       total: latestRows.length,
       authorized: latestRows.filter((item) => item.authorization?.licenseToken?.status === 'bound').length,
       active7d: latestRows.filter((item) => item.lastLoginAt && new Date(item.lastLoginAt).getTime() >= active7d).length,
-      unactivated: latestRows.filter((item) => !item.authorization?.licenseToken).length,
+      practiced: latestRows.filter((item) => (item.practiceSummary?.practiceCount || 0) > 0).length,
+      riskUsers: latestRows.filter((item) => item.activationAttemptSummary?.riskLevel && item.activationAttemptSummary.riskLevel !== 'normal').length,
     }
   }, [latestRows])
 
@@ -56,8 +79,24 @@ export default function LoginUsersPage() {
       ),
     },
     { title: '登录次数', dataIndex: 'loginCount', width: 90, search: false },
-    { title: '首次进入', dataIndex: 'firstLoginAt', width: 150, renderText: (value) => formatDateTime(value) },
     { title: '最近登录', dataIndex: 'lastLoginAt', width: 150, renderText: (value) => formatDateTime(value) },
+    {
+      title: '学习状态',
+      width: 150,
+      search: false,
+      render: (_, record) => {
+        const practice = record.practiceSummary
+        const count = practice?.practiceCount || 0
+        return (
+          <Space direction="vertical" size={0}>
+            <Typography.Text>{count > 0 ? `已做 ${count} 题` : '未开始做题'}</Typography.Text>
+            <Typography.Text type="secondary">
+              {count > 0 ? `正确率 ${practice?.correctRate || 0}% / 错题 ${practice?.mistakeCount || 0}` : `首次进入 ${formatDateTime(record.firstLoginAt)}`}
+            </Typography.Text>
+          </Space>
+        )
+      },
+    },
     {
       title: '设备环境',
       search: false,
@@ -66,6 +105,22 @@ export default function LoginUsersPage() {
           <Typography.Text>{record.lastDevice || '-'}</Typography.Text>
           <Typography.Text type="secondary">
             {[record.lastPlatform, record.lastClientEnv, record.lastSdkVersion].filter(Boolean).join(' / ') || '-'}
+          </Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: '授权尝试',
+      width: 160,
+      search: false,
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Space size={4}>
+            {activationResultTag(record.activationAttemptSummary?.lastAttemptResult, record.activationAttemptSummary?.lastAttemptReason)}
+            {riskTag(record.activationAttemptSummary?.riskLevel, record.activationAttemptSummary?.riskReason)}
+          </Space>
+          <Typography.Text type="secondary">
+            {record.activationAttemptSummary?.attemptCount || 0} 次 / {record.activationAttemptSummary?.distinctOpenIdCount || 0} 账号
           </Typography.Text>
         </Space>
       ),
@@ -101,7 +156,7 @@ export default function LoginUsersPage() {
             return { data: rows, success: true }
           } catch (error) {
             console.warn('query login users failed', error)
-            message.error('登录台账加载失败，请检查后台令牌或后端服务')
+            message.error(describeAdminFetchError(error, '登录台账加载失败，请检查后台令牌或后端服务'))
             return { data: [], success: true }
           }
         }}
@@ -124,6 +179,20 @@ export default function LoginUsersPage() {
         expandable={{
           expandedRowRender: (record) => (
             <Space direction="vertical" size={10} style={{ width: '100%' }}>
+              <Typography.Text strong>最近授权尝试</Typography.Text>
+              {(record.recentActivationAttempts || []).length === 0 ? (
+                <Typography.Text type="secondary">暂无授权尝试</Typography.Text>
+              ) : (
+                (record.recentActivationAttempts || []).map((attempt) => (
+                  <Row gutter={[12, 8]} key={attempt.id}>
+                    <Col xs={24} md={5}><Typography.Text type="secondary">时间：</Typography.Text>{formatDateTime(attempt.createdAt)}</Col>
+                    <Col xs={24} md={4}><Typography.Text type="secondary">结果：</Typography.Text>{activationResultTag(attempt.result, attempt.reason)}</Col>
+                    <Col xs={24} md={5}><Typography.Text type="secondary">输入码：</Typography.Text><Typography.Text code>{maskLicenseCode(attempt.codeInput)}</Typography.Text></Col>
+                    <Col xs={24} md={4}><Typography.Text type="secondary">设备：</Typography.Text>{attempt.device || '-'}</Col>
+                    <Col xs={24} md={6}><Typography.Text type="secondary">IP：</Typography.Text>{attempt.ip || '-'}</Col>
+                  </Row>
+                ))
+              )}
               <Typography.Text strong>最近登录明细</Typography.Text>
               {record.recentLogs.length === 0 ? (
                 <Typography.Text type="secondary">暂无登录明细</Typography.Text>
@@ -143,10 +212,11 @@ export default function LoginUsersPage() {
         }}
         tableExtraRender={() => (
           <Row gutter={[12, 12]}>
-            <Col xs={24} md={6}><StatisticCard statistic={{ title: '访问用户', value: summary.total }} /></Col>
-            <Col xs={24} md={6}><StatisticCard statistic={{ title: '已授权', value: summary.authorized }} /></Col>
-            <Col xs={24} md={6}><StatisticCard statistic={{ title: '近 7 天登录', value: summary.active7d }} /></Col>
-            <Col xs={24} md={6}><StatisticCard statistic={{ title: '未激活', value: summary.unactivated }} /></Col>
+            <Col xs={24} md={5}><StatisticCard statistic={{ title: '访问用户', value: summary.total }} /></Col>
+            <Col xs={24} md={5}><StatisticCard statistic={{ title: '已授权', value: summary.authorized }} /></Col>
+            <Col xs={24} md={5}><StatisticCard statistic={{ title: '已做题', value: summary.practiced }} /></Col>
+            <Col xs={24} md={5}><StatisticCard statistic={{ title: '近 7 天登录', value: summary.active7d }} /></Col>
+            <Col xs={24} md={4}><StatisticCard statistic={{ title: '授权异常', value: summary.riskUsers }} /></Col>
           </Row>
         )}
       />

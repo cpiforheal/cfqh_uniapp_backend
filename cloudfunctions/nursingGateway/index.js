@@ -6,7 +6,10 @@ const DEFAULT_API_BASE = 'http://127.0.0.1:3001/api'
 const ALLOWED_METHODS = new Set(['GET', 'POST', 'DELETE'])
 
 function getApiBase() {
-  return String(process.env.API_BASE || DEFAULT_API_BASE).replace(/\/$/, '')
+  const configuredBase = String(process.env.API_BASE || '').trim()
+  if (configuredBase) return configuredBase.replace(/\/$/, '')
+  if (process.env.ALLOW_DEV_OPEN_ID === 'true') return DEFAULT_API_BASE
+  throw new Error('missing API_BASE for nursingGateway')
 }
 
 function getGatewaySecret() {

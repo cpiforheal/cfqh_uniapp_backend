@@ -18,9 +18,10 @@ systemd
 .github/workflows/build-dist.yml
 ```
 
-生成两个 artifact：
+生成三个 artifact：
 
 ```text
+miniapp-weapp-dist.tar.gz # 小程序 dist + 云函数源码 + project.config.json
 admin-dist.tar.gz   # Web 后台静态文件
 api-runtime.tar.gz  # 后端已编译代码 + 生产依赖 + Prisma Client
 ```
@@ -33,6 +34,28 @@ api-runtime.tar.gz  # 约 29 MB
 ```
 
 注意：`admin/pnpm-lock.yaml` 和 `api/pnpm-lock.yaml` 必须一起提交到仓库，否则 GitHub Actions 的 `--frozen-lockfile` 会失败。
+
+小程序构建时固定使用：
+
+```bash
+TARO_APP_USE_CLOUD_GATEWAY=true
+TARO_APP_CLOUD_GATEWAY_NAME=nursingGateway
+TARO_APP_USE_MOCK_FALLBACK=false
+TARO_APP_DEBUG_API=false
+TARO_APP_DEV_OPEN_ID=
+TARO_APP_DEV_TOKEN_CODE=
+TARO_APP_SKIP_WECHAT_LOGIN=false
+```
+
+因此审核包默认走微信云函数网关，不会内置本地 openId 或 mock 兜底。
+
+CI 会在小程序构建后执行：
+
+```bash
+pnpm check:miniapp-dist
+```
+
+如果产物里出现本地 `openId`、跳过微信登录、关闭云函数网关或开启 mock fallback，构建会直接失败。
 
 后台构建时固定使用：
 
@@ -50,7 +73,22 @@ sudo mkdir -p /var/www/cfqh-admin/current
 sudo mkdir -p /opt/cfqh/api/current
 ```
 
-## 3. 部署 Web 后台
+## 3. 小程序审核包
+
+从 GitHub Actions 下载 `miniapp-weapp-dist.tar.gz` 后，解压到一个空目录，用微信开发者工具打开该目录：
+
+```bash
+mkdir -p /tmp/cfqh-miniapp-upload
+tar -xzf miniapp-weapp-dist.tar.gz -C /tmp/cfqh-miniapp-upload
+```
+
+上传前确认：
+
+- `project.config.json` 中 `miniprogramRoot` 是 `dist/`。
+- 云函数 `nursingGateway` 已部署到当前小程序使用的云环境。
+- 云函数环境变量 `API_BASE` 指向正式 API，`GATEWAY_SECRET` 与 API 完全一致。
+
+## 4. 部署 Web 后台
 
 从 GitHub Actions 下载 `admin-dist.tar.gz` 后：
 
@@ -73,7 +111,7 @@ sudo systemctl reload nginx
 http://111.231.44.21:8080
 ```
 
-## 4. 部署后端 API
+## 5. 部署后端 API
 
 从 GitHub Actions 下载 `api-runtime.tar.gz` 后：
 
@@ -124,7 +162,7 @@ sudo systemctl status cfqh-api
 journalctl -u cfqh-api -f
 ```
 
-## 5. 数据库初始化
+## 6. 数据库初始化
 
 首次部署或 Prisma schema 变化后，在服务器执行一次：
 
@@ -144,7 +182,7 @@ DATABASE_URL=file:/opt/cfqh/api/prod.db node prisma/seed.js
 
 正式题库数据建议从后台导入，不建议长期依赖 seed。
 
-## 6. 更新流程
+## 7. 更新流程
 
 每次 GitHub Actions 重新生成产物后：
 
@@ -159,7 +197,7 @@ sudo tar -xzf admin-dist.tar.gz -C /var/www/cfqh-admin/current
 sudo systemctl reload nginx
 ```
 
-## 7. 检查
+## 8. 检查
 
 ```bash
 curl -I http://127.0.0.1:8080/

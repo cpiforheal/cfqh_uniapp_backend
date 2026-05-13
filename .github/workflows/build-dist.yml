@@ -9,6 +9,63 @@ on:
   workflow_dispatch:
 
 jobs:
+  miniapp-dist:
+    name: Build miniapp dist
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Release preflight
+        run: pnpm release:preflight
+
+      - name: Typecheck miniapp
+        run: pnpm typecheck
+
+      - name: Build miniapp
+        run: pnpm build:weapp
+        env:
+          TARO_APP_USE_CLOUD_GATEWAY: "true"
+          TARO_APP_CLOUD_GATEWAY_NAME: nursingGateway
+          TARO_APP_USE_MOCK_FALLBACK: "false"
+          TARO_APP_DEBUG_API: "false"
+          TARO_APP_DEV_OPEN_ID: ""
+          TARO_APP_DEV_TOKEN_CODE: ""
+          TARO_APP_SKIP_WECHAT_LOGIN: "false"
+
+      - name: Check miniapp dist
+        run: pnpm check:miniapp-dist
+
+      - name: Pack miniapp dist
+        run: |
+          mkdir -p miniapp-upload
+          cp -R dist miniapp-upload/dist
+          cp -R cloudfunctions miniapp-upload/cloudfunctions
+          cp project.config.json miniapp-upload/project.config.json
+          tar -czf miniapp-weapp-dist.tar.gz -C miniapp-upload .
+
+      - name: Upload miniapp artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: miniapp-weapp-dist
+          path: miniapp-weapp-dist.tar.gz
+          retention-days: 14
+
   admin-dist:
     name: Build admin dist
     runs-on: ubuntu-latest

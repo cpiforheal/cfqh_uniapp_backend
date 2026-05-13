@@ -42,6 +42,7 @@ const child = spawn(
       TARO_APP_API_FALLBACK_BASES: fallbackBases,
       TARO_APP_USE_CLOUD_GATEWAY: 'false',
       TARO_APP_USE_MOCK_FALLBACK: 'false',
+      TARO_APP_DEBUG_API: process.env.TARO_APP_DEBUG_API || 'true',
       TARO_APP_DEV_OPEN_ID: devOpenId,
       TARO_APP_SKIP_WECHAT_LOGIN: skipWechatLogin,
     },

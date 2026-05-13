@@ -11,6 +11,7 @@ type AlertsData = {
   inactive: Array<{ openId: string; nickname: string; lastLoginAt: string | null }>
   expiringTokens: Array<{ code: string; boundOpenId: string | null; expiresAt: string }>
   lowAccuracyQuestions: Array<{ questionId: string; title: string; total: number; wrongRate: number }>
+  activationAnomalies?: Array<{ type: string; message: string; tokenId?: string | null; openId?: string | null; count: number; lastAttemptAt?: string | null }>
 }
 
 type TrendPoint = { date: string; practiceCount: number; correctRate: number; activeUsers: number }
@@ -80,7 +81,7 @@ export default function DashboardPage() {
   const publishedVideos = visibility?.modules.reduce((sum, item) => sum + item.publishedVideos, 0) ?? 0
   const moduleStats = analytics?.moduleStats || []
 
-  const totalAlerts = (alerts?.inactive.length ?? 0) + (alerts?.expiringTokens.length ?? 0) + (alerts?.lowAccuracyQuestions.length ?? 0)
+  const totalAlerts = (alerts?.inactive.length ?? 0) + (alerts?.expiringTokens.length ?? 0) + (alerts?.lowAccuracyQuestions.length ?? 0) + (alerts?.activationAnomalies?.length ?? 0)
 
   const weekTrend = trends.length >= 2
     ? { practiceChange: trends[trends.length - 1].practiceCount - trends[0].practiceCount, rateChange: trends[trends.length - 1].correctRate - trends[0].correctRate }
@@ -128,6 +129,18 @@ export default function DashboardPage() {
                       description={alerts!.lowAccuracyQuestions.slice(0, 2).map((q) => q.title.slice(0, 12)).join('、')}
                       style={{ cursor: 'pointer' }}
                       onClick={() => navigate('/nursing/problems/list')}
+                    />
+                  </Col>
+                )}
+                {(alerts?.activationAnomalies?.length ?? 0) > 0 && (
+                  <Col xs={24} md={8}>
+                    <Alert
+                      type="error"
+                      showIcon
+                      message={`${alerts!.activationAnomalies!.length} 条授权异常`}
+                      description={alerts!.activationAnomalies!.slice(0, 2).map((item) => item.message).join('、')}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => navigate('/nursing/license-tokens')}
                     />
                   </Col>
                 )}

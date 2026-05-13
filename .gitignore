@@ -3,10 +3,14 @@ dist/
 .swc/
 .temp/
 .rn_temp/
+.logs/
+plugins/
 .DS_Store
 .env
 .env.local
 *.db
+*.db-shm
+*.db-wal
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
