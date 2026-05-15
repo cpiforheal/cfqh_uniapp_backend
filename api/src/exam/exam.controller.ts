@@ -32,6 +32,12 @@ export class ExamController {
     return this.examService.getExamHistory(openId)
   }
 
+  @Get(':sessionId/info')
+  info(@Param('sessionId') sessionId: string, @Req() req: any) {
+    const openId = requireCurrentOpenId(req, this.configService)
+    return this.examService.getSessionInfo(sessionId, openId)
+  }
+
   @Get(':sessionId/questions')
   questions(@Param('sessionId') sessionId: string, @Req() req: any) {
     const openId = requireCurrentOpenId(req, this.configService)

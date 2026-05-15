@@ -36,7 +36,7 @@ export default function ExamsPage() {
       title: '操作', width: 240, valueType: 'option',
       render: (_, record) => (
         <Space size={4}>
-          <a onClick={() => window.location.assign(`#/nursing/exams/${record.id}`)}>详情</a>
+          <a onClick={() => window.location.assign(`/nursing/exams/${record.id}`)}>详情</a>
           {record.status === 'draft' && (
             <a onClick={() => handleOpen(record.id)}>开放</a>
           )}
@@ -58,11 +58,11 @@ export default function ExamsPage() {
 
   async function handleCreate(values: { title: string; durationMin: number; totalScore: number; description?: string; maxStudents?: number }) {
     try {
-      await createExam(values)
-      message.success('创建成功')
+      const created = await createExam(values)
+      message.success('创建成功，请继续添加题目')
       setCreateVisible(false)
       form.resetFields()
-      actionRef.current?.reload()
+      window.location.assign(`/nursing/exams/${created.id}`)
     } catch (err) {
       message.error(describeAdminFetchError(err, '创建失败'))
     }

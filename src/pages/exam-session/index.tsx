@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { View, Text, Textarea, Button } from '@tarojs/components'
 import Taro, { useRouter, useDidHide, useDidShow } from '@tarojs/taro'
-import { getExamQuestions, submitExamAnswer, submitExam, reportExamHideEvent, getActiveExamSession } from '../../services/nursing'
+import { getExamQuestions, submitExamAnswer, submitExam, reportExamHideEvent, getExamSessionInfo } from '../../services/nursing'
 import type { ExamQuestionItem } from '../../services/nursing'
 import styles from './index.module.scss'
 
@@ -18,15 +18,22 @@ export default function ExamSessionPage() {
 
   const hideTimeRef = useRef(0)
   const timerRef = useRef<ReturnType<typeof setInterval>>()
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const pendingRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+
+  const flushPending = useCallback(() => {
+    pendingRef.current.forEach((timer) => {
+      clearTimeout(timer)
+    })
+    pendingRef.current.clear()
+  }, [])
 
   useEffect(() => {
     loadSession()
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
-      if (debounceRef.current) clearTimeout(debounceRef.current)
+      flushPending()
     }
-  }, [])
+  }, [flushPending])
 
   useEffect(() => {
     if (!deadline) return
@@ -55,13 +62,13 @@ export default function ExamSessionPage() {
 
   async function loadSession() {
     try {
-      const active = await getActiveExamSession()
-      if (!active) {
+      const sessionInfo = await getExamSessionInfo(sessionId)
+      if (!sessionInfo || sessionInfo.status !== 'in_progress') {
         Taro.showToast({ title: '考试已结束', icon: 'none' })
         setTimeout(() => Taro.navigateBack(), 1500)
         return
       }
-      setDeadline(new Date(active.deadline).getTime())
+      setDeadline(new Date(sessionInfo.deadline).getTime())
       const qs = await getExamQuestions(sessionId)
       setQuestions(qs)
       const saved: Record<string, string> = {}
@@ -73,11 +80,27 @@ export default function ExamSessionPage() {
   }
 
   const saveAnswer = useCallback((questionId: string, answer: string) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
+    const existing = pendingRef.current.get(questionId)
+    if (existing) clearTimeout(existing)
+    const timer = setTimeout(() => {
+      pendingRef.current.delete(questionId)
       submitExamAnswer(sessionId, questionId, answer).catch(() => {})
     }, 500)
+    pendingRef.current.set(questionId, timer)
   }, [sessionId])
+
+  const flushAndSaveAll = useCallback(async (currentAnswers: Record<string, string>) => {
+    flushPending()
+    const results = await Promise.allSettled(
+      Object.entries(currentAnswers).map(([qId, ans]) =>
+        submitExamAnswer(sessionId, qId, ans)
+      )
+    )
+    const failures = results.filter((r) => r.status === 'rejected')
+    if (failures.length > 0) {
+      throw new Error(`${failures.length} 题保存失败`)
+    }
+  }, [sessionId, flushPending])
 
   function handleSelectOption(questionId: string, key: string) {
     if (submitted) return
@@ -119,6 +142,13 @@ export default function ExamSessionPage() {
       if (!confirmed) return
     }
     setSubmitted(true)
+    try {
+      await flushAndSaveAll(answers)
+    } catch (flushErr: any) {
+      setSubmitted(false)
+      Taro.showToast({ title: `答案保存未完成：${flushErr?.message || '网络异常'}，请重试`, icon: 'none', duration: 3000 })
+      return
+    }
     try {
       await submitExam(sessionId)
       Taro.showToast({ title: auto ? '时间到，已自动交卷' : '交卷成功', icon: 'success' })

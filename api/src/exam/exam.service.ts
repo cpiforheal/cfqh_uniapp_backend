@@ -65,6 +65,7 @@ export class ExamService {
   async addQuestion(examId: string, dto: CreateExamQuestionDto) {
     const exam = await this.prisma.exam.findUnique({ where: { id: examId } })
     if (!exam) throw new NotFoundException('考试不存在')
+    if (exam.status !== ExamStatus.draft) throw new BadRequestException('考试已开放，不能修改题目')
     return this.prisma.examQuestion.create({
       data: {
         examId,
@@ -81,6 +82,8 @@ export class ExamService {
   }
 
   async updateQuestion(examId: string, questionId: string, dto: Partial<CreateExamQuestionDto>) {
+    const exam = await this.prisma.exam.findUnique({ where: { id: examId } })
+    if (!exam || exam.status !== ExamStatus.draft) throw new BadRequestException('考试已开放，不能修改题目')
     const q = await this.prisma.examQuestion.findFirst({ where: { id: questionId, examId } })
     if (!q) throw new NotFoundException('题目不存在')
     return this.prisma.examQuestion.update({
@@ -99,6 +102,8 @@ export class ExamService {
   }
 
   async deleteQuestion(examId: string, questionId: string) {
+    const exam = await this.prisma.exam.findUnique({ where: { id: examId } })
+    if (!exam || exam.status !== ExamStatus.draft) throw new BadRequestException('考试已开放，不能修改题目')
     const q = await this.prisma.examQuestion.findFirst({ where: { id: questionId, examId } })
     if (!q) throw new NotFoundException('题目不存在')
     await this.prisma.examQuestion.delete({ where: { id: questionId } })
@@ -108,6 +113,7 @@ export class ExamService {
   async importQuestions(examId: string, questions: CreateExamQuestionDto[]) {
     const exam = await this.prisma.exam.findUnique({ where: { id: examId } })
     if (!exam) throw new NotFoundException('考试不存在')
+    if (exam.status !== ExamStatus.draft) throw new BadRequestException('考试已开放，不能导入题目')
     const data = questions.map((q) => ({
       examId,
       seq: q.seq,
@@ -146,11 +152,22 @@ export class ExamService {
   async openExam(examId: string) {
     const exam = await this.prisma.exam.findUnique({ where: { id: examId }, include: { _count: { select: { questions: true } } } })
     if (!exam) throw new NotFoundException('考试不存在')
+    if (exam.status !== ExamStatus.draft) throw new BadRequestException('只有草稿状态的考试可以开放')
     if (exam._count.questions === 0) throw new BadRequestException('考试没有题目，无法开放')
     return this.prisma.exam.update({ where: { id: examId }, data: { status: ExamStatus.open } })
   }
 
   async closeExam(examId: string) {
+    const exam = await this.prisma.exam.findUnique({ where: { id: examId } })
+    if (!exam) throw new NotFoundException('考试不存在')
+    if (exam.status !== ExamStatus.open) throw new BadRequestException('只有开放中的考试可以关闭')
+
+    const inProgressSessions = await this.prisma.examSession.findMany({
+      where: { examId, status: ExamSessionStatus.in_progress },
+    })
+    for (const session of inProgressSessions) {
+      await this.autoSubmit(session.id)
+    }
     return this.prisma.exam.update({ where: { id: examId }, data: { status: ExamStatus.grading } })
   }
 
@@ -160,6 +177,45 @@ export class ExamService {
       include: { user: { select: { nickname: true, openId: true } } },
       orderBy: { createdAt: 'desc' },
     })
+  }
+
+  async createTestSubmission(examId: string) {
+    const exam = await this.prisma.exam.findUnique({
+      where: { id: examId },
+      include: { questions: { orderBy: { seq: 'asc' } } },
+    })
+    if (!exam) throw new NotFoundException('考试不存在')
+    if (exam.status !== ExamStatus.open) throw new BadRequestException('只有开放中的考试可以生成测试答卷')
+    if (exam.questions.length === 0) throw new BadRequestException('考试没有题目，无法生成测试答卷')
+
+    const openId = `local-exam-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const user = await this.prisma.user.create({
+      data: { openId, nickname: '本地测试考生', loginCount: 0, lastLoginAt: new Date(), lastClientEnv: 'admin-test' },
+    })
+    const license = await this.prisma.examLicense.create({
+      data: { code: this.generateExamCode(), examId, boundUserId: user.id, boundOpenId: openId, boundAt: new Date() },
+    })
+    const session = await this.prisma.examSession.create({
+      data: { examId, userId: user.id, licenseId: license.id },
+    })
+
+    let objectiveScore = 0
+    await this.prisma.examAnswer.createMany({
+      data: exam.questions.map((question) => {
+        const answer = question.isObjective ? question.answer : '本地测试主观题作答'
+        const isCorrect = question.isObjective ? true : null
+        const score = question.isObjective ? question.score : null
+        if (question.isObjective) objectiveScore += question.score
+        return { sessionId: session.id, questionId: question.id, answer, isCorrect, score }
+      }),
+    })
+
+    await this.prisma.examSession.update({
+      where: { id: session.id },
+      data: { status: ExamSessionStatus.submitted, submittedAt: new Date(), objectiveScore },
+    })
+
+    return { sessionId: session.id, openId, objectiveScore }
   }
 
   async getSessionDetail(examId: string, sessionId: string) {
@@ -177,30 +233,53 @@ export class ExamService {
 
   async gradeSession(examId: string, sessionId: string, dto: GradeSessionDto, adminUserId?: string) {
     const session = await this.prisma.examSession.findFirst({
-      where: { id: sessionId, examId, status: ExamSessionStatus.submitted },
+      where: { id: sessionId, examId, status: { in: [ExamSessionStatus.submitted, ExamSessionStatus.graded] } },
     })
     if (!session) throw new NotFoundException('未找到待批改的考试会话')
 
-    for (const item of dto.scores) {
+    const submittedScores = new Map((dto.scores ?? []).map((item) => [item.questionId, item.score]))
+    const allAnswers = await this.prisma.examAnswer.findMany({
+      where: { sessionId },
+      include: { question: { select: { isObjective: true, score: true } } },
+    })
+    const subjectiveAnswers = allAnswers.filter((a) => !a.question.isObjective)
+
+    for (const item of dto.scores ?? []) {
+      if (item.score === undefined || item.score === null || !Number.isFinite(item.score)) {
+        throw new BadRequestException('请填写完整的主观题分数')
+      }
+      if (item.score < 0) throw new BadRequestException('分数不能小于 0')
+    }
+
+    for (const answer of subjectiveAnswers) {
+      const score = submittedScores.has(answer.questionId) ? submittedScores.get(answer.questionId) : answer.score
+      if (score === undefined || score === null || !Number.isFinite(score)) {
+        throw new BadRequestException('请填写完整的主观题分数')
+      }
+      if (score > answer.question.score) throw new BadRequestException('分数不能超过题目分值')
+    }
+
+    for (const item of dto.scores ?? []) {
       await this.prisma.examAnswer.updateMany({
         where: { sessionId, questionId: item.questionId },
         data: { score: item.score },
       })
     }
 
-    const allAnswers = await this.prisma.examAnswer.findMany({ where: { sessionId } })
-    const subjectiveScore = allAnswers
-      .filter((a) => a.score !== null && a.isCorrect === null)
-      .reduce((sum, a) => sum + (a.score || 0), 0)
+    const subjectiveScore = subjectiveAnswers.reduce((sum, a) => sum + (submittedScores.has(a.questionId) ? submittedScores.get(a.questionId)! : a.score || 0), 0)
     const objectiveScore = session.objectiveScore || 0
     const totalScore = objectiveScore + subjectiveScore
 
     await this.prisma.examSession.update({
       where: { id: sessionId },
-      data: { subjectiveScore, totalScore, status: ExamSessionStatus.graded },
+      data: {
+        subjectiveScore,
+        totalScore,
+        status: ExamSessionStatus.graded,
+      },
     })
 
-    if (dto.comment) {
+    if (dto.comment !== undefined) {
       await this.prisma.examComment.upsert({
         where: { sessionId },
         update: { content: dto.comment, createdBy: adminUserId },
@@ -212,8 +291,26 @@ export class ExamService {
   }
 
   async publishExam(examId: string) {
+    const exam = await this.prisma.exam.findUnique({ where: { id: examId } })
+    if (!exam) throw new NotFoundException('考试不存在')
+    if (exam.status !== ExamStatus.grading) throw new BadRequestException('只有批改中的考试可以公布成绩')
+
+    const inProgressCount = await this.prisma.examSession.count({
+      where: { examId, status: ExamSessionStatus.in_progress },
+    })
+    if (inProgressCount > 0) {
+      throw new BadRequestException(`还有 ${inProgressCount} 名考生正在答题，请先关闭考试`)
+    }
+
+    const ungradedCount = await this.prisma.examSession.count({
+      where: { examId, status: ExamSessionStatus.submitted },
+    })
+    if (ungradedCount > 0) {
+      throw new BadRequestException(`还有 ${ungradedCount} 份答卷未完成批改，无法公布`)
+    }
+
     const sessions = await this.prisma.examSession.findMany({
-      where: { examId, status: { in: [ExamSessionStatus.graded, ExamSessionStatus.submitted] } },
+      where: { examId, status: ExamSessionStatus.graded },
       orderBy: [{ totalScore: 'desc' }, { submittedAt: 'asc' }],
     })
 
@@ -294,6 +391,19 @@ export class ExamService {
       deadline: deadline.toISOString(),
     }
   }
+
+  async getSessionInfo(sessionId: string, openId: string) {
+    const session = await this.verifySessionOwner(sessionId, openId)
+    const deadline = new Date(session.startedAt.getTime() + session.exam.durationMin * 60000)
+    return {
+      sessionId: session.id,
+      exam: { id: session.exam.id, title: session.exam.title, durationMin: session.exam.durationMin, totalScore: session.exam.totalScore },
+      startedAt: session.startedAt.toISOString(),
+      deadline: deadline.toISOString(),
+      status: session.status,
+    }
+  }
+
   async getExamQuestions(sessionId: string, openId: string) {
     const session = await this.verifySessionOwner(sessionId, openId)
     const questions = await this.prisma.examQuestion.findMany({
@@ -315,6 +425,9 @@ export class ExamService {
 
     const deadline = new Date(session.startedAt.getTime() + session.exam.durationMin * 60000 + 30000)
     if (new Date() > deadline) throw new BadRequestException('答题时间已过')
+
+    const question = await this.prisma.examQuestion.findFirst({ where: { id: questionId, examId: session.examId } })
+    if (!question) throw new BadRequestException('题目不属于当前考试')
 
     await this.prisma.examAnswer.upsert({
       where: { sessionId_questionId: { sessionId, questionId } },
@@ -341,25 +454,34 @@ export class ExamService {
 
   async getExamResult(sessionId: string, openId: string) {
     const session = await this.verifySessionOwner(sessionId, openId)
-    if (session.exam.status !== ExamStatus.published) {
+    const isPublished = session.exam.status === ExamStatus.published
+    const isGraded = session.status === ExamSessionStatus.graded
+    if (!isPublished && !isGraded) {
       return { published: false, status: session.status, examTitle: session.exam.title }
     }
-    const totalStudents = await this.prisma.examSession.count({ where: { examId: session.examId } })
     const comment = await this.prisma.examComment.findUnique({ where: { sessionId } })
+    const result = {
+      published: isPublished,
+      status: session.status,
+      examTitle: session.exam.title,
+      totalScore: session.totalScore,
+      objectiveScore: session.objectiveScore,
+      subjectiveScore: session.subjectiveScore,
+      hideCount: session.hideCount,
+      comment: comment?.content || null,
+    }
+
+    if (!isPublished) return result
+
+    const totalStudents = await this.prisma.examSession.count({ where: { examId: session.examId } })
     const answers = await this.prisma.examAnswer.findMany({
       where: { sessionId },
       include: { question: true },
     })
     return {
-      published: true,
-      examTitle: session.exam.title,
-      totalScore: session.totalScore,
-      objectiveScore: session.objectiveScore,
-      subjectiveScore: session.subjectiveScore,
+      ...result,
       rank: session.rank,
       totalStudents,
-      hideCount: session.hideCount,
-      comment: comment?.content || null,
       answers: answers.map((a) => ({
         questionId: a.questionId,
         seq: a.question.seq,

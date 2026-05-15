@@ -49,8 +49,19 @@ export default function ExamPage() {
     Taro.navigateTo({ url: `/pages/exam-session/index?sessionId=${activeSession.sessionId}` })
   }
 
-  function handleViewResult(sessionId: string) {
-    Taro.navigateTo({ url: `/pages/exam-result/index?sessionId=${sessionId}` })
+  function handleHistoryItem(item: ExamHistoryItem) {
+    if (item.status === 'in_progress') {
+      Taro.navigateTo({ url: `/pages/exam-session/index?sessionId=${item.id}` })
+      return
+    }
+    Taro.navigateTo({ url: `/pages/exam-result/index?sessionId=${item.id}` })
+  }
+
+  function getHistoryStatusText(item: ExamHistoryItem) {
+    if (item.totalScore !== null) return `${item.totalScore}分`
+    if (item.status === 'in_progress') return '未交卷'
+    if (item.status === 'graded') return '已批改'
+    return '待批改'
   }
 
   return (
@@ -93,7 +104,7 @@ export default function ExamPage() {
             <View
               key={item.id}
               className={styles.historyItem}
-              onClick={() => handleViewResult(item.id)}
+              onClick={() => handleHistoryItem(item)}
             >
               <View>
                 <Text className={styles.historyName}>{item.exam.title}</Text>
@@ -101,10 +112,10 @@ export default function ExamPage() {
                   {item.createdAt?.slice(0, 10)}
                 </Text>
               </View>
-              {item.totalScore !== null ? (
-                <Text className={styles.historyScore}>{item.totalScore}分</Text>
+              {item.totalScore !== null || item.status === 'graded' ? (
+                <Text className={styles.historyScore}>{getHistoryStatusText(item)}</Text>
               ) : (
-                <Text className={styles.historyPending}>待批改</Text>
+                <Text className={styles.historyPending}>{getHistoryStatusText(item)}</Text>
               )}
             </View>
           ))}

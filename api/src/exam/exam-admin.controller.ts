@@ -1,5 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common'
+import { FileInterceptor } from '@nestjs/platform-express'
 import { AdminGuard } from '../common/guards/admin.guard'
 import { ExamService } from './exam.service'
 import { ExamImportService } from './exam-import.service'
@@ -59,6 +59,14 @@ export class ExamAdminController {
     return this.examService.importQuestions(id, body.questions)
   }
 
+  @Post(':id/import/preview')
+  @UseInterceptors(FileInterceptor('questionDoc', { limits: { fileSize: 30 * 1024 * 1024 } }))
+  previewImportQuestions(@UploadedFile() questionDoc?: Express.Multer.File) {
+    if (!questionDoc) throw new BadRequestException('请上传题目 Word 文档')
+    if (!questionDoc.originalname.toLowerCase().endsWith('.docx')) throw new BadRequestException('请上传 .docx 格式的题目文档')
+    return this.examImportService.previewDocx(questionDoc.buffer)
+  }
+
   @Post(':id/licenses/generate')
   generateLicenses(@Param('id') id: string, @Body() dto: GenerateLicensesDto) {
     return this.examService.generateLicenses(id, dto.count)
@@ -82,6 +90,11 @@ export class ExamAdminController {
   @Get(':id/sessions')
   listSessions(@Param('id') id: string) {
     return this.examService.listSessions(id)
+  }
+
+  @Post(':id/test-submission')
+  createTestSubmission(@Param('id') id: string) {
+    return this.examService.createTestSubmission(id)
   }
 
   @Get(':id/sessions/:sid')

@@ -30,6 +30,11 @@ export interface ExamQuestion {
   createdAt: string
 }
 
+export interface ExamQuestionImportPreview {
+  summary: { total: number; ready: number; needsReview: number }
+  items: Array<Partial<ExamQuestion> & { issues?: string[] }>
+}
+
 export interface ExamDetail {
   id: string
   title: string
@@ -118,6 +123,15 @@ export async function importExamQuestions(examId: string, questions: Partial<Exa
   return adminFetch<{ imported: number }>(`/admin/exams/${examId}/import`, { method: 'POST', body: JSON.stringify({ questions }) })
 }
 
+export async function previewExamQuestionImport(examId: string, questionDoc: File) {
+  const formData = new FormData()
+  formData.append('questionDoc', questionDoc)
+  return adminFetch<ExamQuestionImportPreview>(`/admin/exams/${examId}/import/preview`, {
+    method: 'POST',
+    body: formData,
+  })
+}
+
 export async function generateExamLicenses(examId: string, count: number) {
   return adminFetch<{ generated: number; codes: string[] }>(`/admin/exams/${examId}/licenses/generate`, { method: 'POST', body: JSON.stringify({ count }) })
 }
@@ -136,6 +150,10 @@ export async function closeExam(id: string) {
 
 export async function queryExamSessions(examId: string) {
   return adminFetch<ExamSessionItem[]>(`/admin/exams/${examId}/sessions`)
+}
+
+export async function createTestSubmission(examId: string) {
+  return adminFetch<{ sessionId: string; openId: string; objectiveScore: number }>(`/admin/exams/${examId}/test-submission`, { method: 'POST' })
 }
 
 export async function getExamSessionDetail(examId: string, sessionId: string) {

@@ -1,4 +1,5 @@
-import { IsInt, IsOptional, IsString, Min } from 'class-validator'
+import { Type } from 'class-transformer'
+import { IsArray, IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator'
 
 export class SubmitAnswerDto {
   @IsString()
@@ -19,10 +20,15 @@ export class GradeAnswerDto {
   questionId: string
 
   @IsOptional()
+  @IsNumber()
+  @Min(0)
   score?: number
 }
 
 export class GradeSessionDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => GradeAnswerDto)
   scores: GradeAnswerDto[]
 
   @IsOptional()

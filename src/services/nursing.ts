@@ -722,6 +722,7 @@ export interface ExamSessionInfo {
   exam: { id: string; title: string; durationMin: number; totalScore: number }
   startedAt: string
   deadline: string
+  status?: 'in_progress' | 'submitted' | 'graded'
 }
 
 export interface ExamQuestionItem {
@@ -785,26 +786,38 @@ export async function getActiveExamSession(): Promise<ExamSessionInfo | null> {
   return request<ExamSessionInfo>(`/exams/active${openId ? `?openId=${openId}` : ''}`)
 }
 
+export async function getExamSessionInfo(sessionId: string): Promise<ExamSessionInfo | null> {
+  const openId = await ensureLogin()
+  const result = await request<ExamSessionInfo>(`/exams/${sessionId}/info${openId ? `?openId=${openId}` : ''}`)
+  if (!result) throw new Error('加载考试失败')
+  return result
+}
+
 export async function getExamQuestions(sessionId: string): Promise<ExamQuestionItem[]> {
   const openId = await ensureLogin()
   const result = await request<ExamQuestionItem[]>(`/exams/${sessionId}/questions${openId ? `?openId=${openId}` : ''}`)
-  return result || []
+  if (!result) throw new Error('加载题目失败')
+  return result
 }
 
 export async function submitExamAnswer(sessionId: string, questionId: string, answer: string) {
   const openId = await ensureLogin()
-  return request(`/exams/${sessionId}/answer`, {
+  const result = await request<{ ok: boolean }>(`/exams/${sessionId}/answer`, {
     method: 'POST',
     data: { ...(openId ? { openId } : {}), questionId, answer },
   })
+  if (!result?.ok) throw new Error('答案保存失败')
+  return result
 }
 
 export async function submitExam(sessionId: string) {
   const openId = await ensureLogin()
-  return request(`/exams/${sessionId}/submit`, {
+  const result = await request<{ ok: boolean }>(`/exams/${sessionId}/submit`, {
     method: 'POST',
     data: { ...(openId ? { openId } : {}) },
   })
+  if (!result?.ok) throw new Error('交卷失败')
+  return result
 }
 
 export async function reportExamHideEvent(sessionId: string, durationMs: number) {

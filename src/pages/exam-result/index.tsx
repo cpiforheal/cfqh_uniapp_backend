@@ -23,14 +23,27 @@ export default function ExamResultPage() {
     }
   }
 
-  if (!result) return null
+  if (!result) {
+    return (
+      <View className={styles.resultPage}>
+        <View className={styles.pendingCard}>
+          <Text className={styles.pendingText}>成绩加载中...</Text>
+        </View>
+      </View>
+    )
+  }
 
-  if (!result.published) {
+  const hasScore = result.totalScore !== undefined && result.totalScore !== null
+
+  if (!result.published && !hasScore) {
     return (
       <View className={styles.resultPage}>
         <View className={styles.pendingCard}>
           <Text className={styles.pendingIcon}>⏳</Text>
-          <Text className={styles.pendingText}>老师正在批改中，请稍后查看</Text>
+          <Text className={styles.pendingTitle}>{result.examTitle}</Text>
+          <Text className={styles.pendingText}>
+            {result.status === 'in_progress' ? '考试仍在进行中，请先完成交卷' : '老师正在批改中，请稍后查看'}
+          </Text>
         </View>
       </View>
     )
@@ -54,12 +67,20 @@ export default function ExamResultPage() {
         </View>
       </View>
 
-      <View className={styles.rankCard}>
-        <Text className={styles.rankLabel}>我的排名</Text>
-        <Text className={styles.rankValue}>
-          第 {result.rank ?? '-'} 名 / 共 {result.totalStudents ?? 0} 人
-        </Text>
-      </View>
+      {!result.published && (
+        <View className={styles.noticeCard}>
+          <Text className={styles.noticeText}>成绩已批改，排名和答题解析将在老师发布后显示</Text>
+        </View>
+      )}
+
+      {result.published && (
+        <View className={styles.rankCard}>
+          <Text className={styles.rankLabel}>我的排名</Text>
+          <Text className={styles.rankValue}>
+            第 {result.rank ?? '-'} 名 / 共 {result.totalStudents ?? 0} 人
+          </Text>
+        </View>
+      )}
 
       {result.comment && (
         <View className={styles.commentCard}>
