@@ -8,7 +8,7 @@ import type { QuestionDetail } from '@/types/study'
 import { cx } from '@/utils/classNames'
 import styles from './index.module.scss'
 
-type ReviewTabKey = 'analysis' | 'case' | 'confusing' | 'memory' | 'video'
+type ReviewTabKey = 'analysis' | 'case' | 'confusing' | 'memory'
 
 function normalizeAnswer(value: string) {
   return value.split('').sort().join('')
@@ -247,7 +247,6 @@ export default function QuestionDetailPage() {
     { key: 'case' as const, label: '案例', visible: Boolean(data.caseMaterial) },
     { key: 'confusing' as const, label: '易混点', visible: Boolean(data.confusingPoint) },
     { key: 'memory' as const, label: '记忆', visible: Boolean(data.memoryTip) },
-    { key: 'video' as const, label: '视频', visible: Boolean(data.relatedVideo) },
   ].filter((item) => item.visible)
   const currentReviewTab = reviewTabs.some((item) => item.key === activeReviewTab) ? activeReviewTab : 'analysis'
 
@@ -334,12 +333,6 @@ export default function QuestionDetailPage() {
             <View className={styles.reviewBlock}>
               <Text className={styles.reviewBlockTitle}>{data.memoryTip.title}</Text>
               <Text className={styles.reviewBody}>{data.memoryTip.tip}</Text>
-            </View>
-          )}
-          {currentReviewTab === 'video' && data.relatedVideo && (
-            <View className={styles.reviewBlock}>
-              <Text className={styles.reviewBlockTitle}>{data.relatedVideo.title}</Text>
-              <Text className={styles.reviewBody}>公开讲解已关联到本题，可在视频页继续查看。</Text>
             </View>
           )}
         </View>

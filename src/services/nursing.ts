@@ -143,20 +143,6 @@ interface ApiQuestion {
   } | null
 }
 
-interface ApiVideo {
-  id: string
-  title: string
-  duration: number
-  difficulty: Difficulty
-  knowledgeTags: string
-  moduleCode?: string
-  moduleName?: string
-  chapter?: string
-  coverUrl?: string
-  assetKey?: string
-  videoUrl?: string
-}
-
 interface ApiPracticeHome {
   subjectCode: 'nursing'
   subjectName: string
@@ -167,7 +153,7 @@ interface ApiPracticeHome {
   recommendedQuestions?: ApiQuestion[]
   dailyPractice?: { questionId?: string; questionTitle: string; knowledgeTags: string } | null
   recentMistakes?: Array<ApiQuestion & { wrongCount?: number }>
-  recommendedVideos?: ApiVideo[]
+  recommendedVideos?: unknown[]
   confusingPoints?: Array<{ id: string; title: string; contrastSummary: string }>
   memoryTips?: Array<{ id: string; title: string; tip: string; relatedKnowledgeTags: string }>
 }
@@ -403,23 +389,6 @@ function normalizeQuestion(input: Partial<ApiQuestion> & { knowledgePoints?: Kno
   }
 }
 
-function normalizeVideo(item: ApiVideo): VideoLessonSummary {
-  return {
-    id: item.id,
-    title: item.title,
-    duration: item.duration,
-    difficulty: item.difficulty || 'basic',
-    difficultyText: difficultyText(item.difficulty),
-    knowledgePoints: mapKnowledgeTags(item.knowledgeTags),
-    moduleCode: item.moduleCode,
-    moduleName: item.moduleName,
-    chapter: item.chapter,
-    coverUrl: item.coverUrl,
-    assetKey: item.assetKey,
-    videoUrl: item.videoUrl,
-  }
-}
-
 function normalizeAuthorization(result?: LicenseStatusResult | null): AuthorizationInfo {
   const authorized = Boolean(result?.authorized)
   return {
@@ -504,7 +473,7 @@ export async function getPracticeHomeOverview(): Promise<PracticeHomeOverview> {
     recommendedQuestions.push(dailyQuestion)
   }
   const recentMistakes = home.recentMistakes?.map((item) => ({ ...normalizeQuestion(item), isMistake: true, wrongCount: item.wrongCount || 1 })) || []
-  const recommendedVideos = home.recommendedVideos?.map(normalizeVideo) || []
+  const recommendedVideos: VideoLessonSummary[] = []
   const confusingPoints: ConfusingPointSummary[] = home.confusingPoints?.map((item) => ({ id: item.id, title: item.title, contrast: item.contrastSummary })) || []
   const knowledgeCards: NursingKnowledgeCard[] = home.memoryTips?.map((item) => ({
     id: item.id,
@@ -714,29 +683,11 @@ export async function getModuleQuestions(moduleCode: string): Promise<PracticeQu
   return moduleQuestions.map((question) => normalizeQuestion(question))
 }
 
-export async function getVideoLessons(moduleCode?: string): Promise<VideoLessonSummary[]> {
-  const query = moduleCode ? `?moduleCode=${moduleCode}` : ''
-  const videos = await request<ApiVideo[]>(`/videos${query}`)
-  if (!videos) {
-    if (!MINIAPP_ENV.useMockFallback) throw new Error('video_lessons_request_failed')
-    return practiceHomeMock.recommendedVideos
-  }
-  return videos.map(normalizeVideo)
-}
-
 export async function addFavorite(questionId: string) {
   const openId = await ensureLogin()
   return request('/favorites', {
     method: 'POST',
     data: { ...(openId ? { openId } : {}), questionId },
-  })
-}
-
-export async function reportVideoPlay(videoId: string) {
-  const openId = await ensureLogin()
-  return request('/video-play-records', {
-    method: 'POST',
-    data: { ...(openId ? { openId } : {}), videoId },
   })
 }
 
@@ -755,4 +706,124 @@ export interface HomeConfig {
 export async function getHomeConfig(): Promise<HomeConfig> {
   const result = await request<HomeConfig>('/home-config')
   return result || {}
+}
+
+// ─── Exam Module ──────────────────────────────────────────────────────────────
+
+export interface ExamJoinResult {
+  sessionId: string
+  exam: { id: string; title: string; durationMin: number; totalScore: number }
+  startedAt: string
+  deadline: string
+}
+
+export interface ExamSessionInfo {
+  sessionId: string
+  exam: { id: string; title: string; durationMin: number; totalScore: number }
+  startedAt: string
+  deadline: string
+}
+
+export interface ExamQuestionItem {
+  id: string
+  seq: number
+  type: string
+  stem: string
+  optionsJson: string
+  score: number
+  isObjective: boolean
+  savedAnswer: string | null
+}
+
+export interface ExamResultInfo {
+  published: boolean
+  examTitle: string
+  totalScore?: number | null
+  objectiveScore?: number | null
+  subjectiveScore?: number | null
+  rank?: number | null
+  totalStudents?: number
+  hideCount?: number
+  comment?: string | null
+  status?: string
+  answers?: Array<{
+    questionId: string
+    seq: number
+    stem: string
+    type: string
+    yourAnswer: string | null
+    correctAnswer: string
+    isCorrect: boolean | null
+    score: number | null
+    maxScore: number
+    analysis: string | null
+  }>
+}
+
+export interface ExamHistoryItem {
+  id: string
+  examId: string
+  status: string
+  totalScore: number | null
+  rank: number | null
+  createdAt: string
+  exam: { id: string; title: string; status: string; totalScore: number }
+}
+
+export async function joinExam(code: string): Promise<ExamJoinResult> {
+  const openId = await ensureLogin()
+  const result = await request<ExamJoinResult>('/exams/join', {
+    method: 'POST',
+    data: { ...(openId ? { openId } : {}), code },
+  })
+  if (!result) throw new Error('join_exam_failed')
+  return result
+}
+
+export async function getActiveExamSession(): Promise<ExamSessionInfo | null> {
+  const openId = await ensureLogin()
+  return request<ExamSessionInfo>(`/exams/active${openId ? `?openId=${openId}` : ''}`)
+}
+
+export async function getExamQuestions(sessionId: string): Promise<ExamQuestionItem[]> {
+  const openId = await ensureLogin()
+  const result = await request<ExamQuestionItem[]>(`/exams/${sessionId}/questions${openId ? `?openId=${openId}` : ''}`)
+  return result || []
+}
+
+export async function submitExamAnswer(sessionId: string, questionId: string, answer: string) {
+  const openId = await ensureLogin()
+  return request(`/exams/${sessionId}/answer`, {
+    method: 'POST',
+    data: { ...(openId ? { openId } : {}), questionId, answer },
+  })
+}
+
+export async function submitExam(sessionId: string) {
+  const openId = await ensureLogin()
+  return request(`/exams/${sessionId}/submit`, {
+    method: 'POST',
+    data: { ...(openId ? { openId } : {}) },
+  })
+}
+
+export async function reportExamHideEvent(sessionId: string, durationMs: number) {
+  const openId = await ensureLogin()
+  return request(`/exams/${sessionId}/hide-event`, {
+    method: 'POST',
+    data: { ...(openId ? { openId } : {}), durationMs },
+  })
+}
+
+export async function getExamResult(sessionId: string): Promise<ExamResultInfo> {
+  const openId = await ensureLogin()
+  const result = await request<ExamResultInfo>(`/exams/${sessionId}/result${openId ? `?openId=${openId}` : ''}`)
+  if (!result) throw new Error('exam_result_request_failed')
+  return result
+}
+
+export async function getExamHistory(): Promise<ExamHistoryItem[]> {
+  const openId = await ensureLogin()
+  const result = await request<ExamHistoryItem[]>(`/exams/history${openId ? `?openId=${openId}` : ''}`)
+  return result || []
 }

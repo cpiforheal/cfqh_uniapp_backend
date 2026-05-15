@@ -56,7 +56,6 @@ export default function ActivatePage() {
     queryClient.invalidateQueries({ queryKey: ['profileOverview'] })
     queryClient.invalidateQueries({ queryKey: ['moduleQuestions'] })
     queryClient.invalidateQueries({ queryKey: ['questionDetail'] })
-    queryClient.invalidateQueries({ queryKey: ['videoLessons'] })
   }
 
   useEffect(() => {

@@ -63,6 +63,7 @@ model User {
   loginLogs        UserLoginLog[]
   activationAttempts LicenseActivationAttempt[]
   videoPlayRecords VideoPlayRecord[] @relation("VideoPlayRecords")
+  examSessions     ExamSession[]
 }
 
 model UserLoginLog {
@@ -370,4 +371,118 @@ model AdminSession {
 
   @@index([adminUserId])
   @@index([expiresAt])
+}
+
+// ─── Online Exam Module ───────────────────────────────────────────────────────
+
+enum ExamStatus {
+  draft
+  open
+  grading
+  published
+}
+
+enum ExamSessionStatus {
+  in_progress
+  submitted
+  graded
+}
+
+model Exam {
+  id          String      @id @default(cuid())
+  title       String
+  description String?
+  subjectCode SubjectCode @default(nursing)
+  durationMin Int
+  totalScore  Float
+  maxStudents Int         @default(100)
+  status      ExamStatus  @default(draft)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  questions   ExamQuestion[]
+  licenses    ExamLicense[]
+  sessions    ExamSession[]
+}
+
+model ExamQuestion {
+  id          String       @id @default(cuid())
+  examId      String
+  seq         Int
+  type        QuestionType
+  stem        String
+  optionsJson String       @default("[]")
+  answer      String
+  analysis    String?
+  score       Float
+  isObjective Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  exam        Exam         @relation(fields: [examId], references: [id], onDelete: Cascade)
+  answers     ExamAnswer[]
+
+  @@index([examId])
+}
+
+model ExamLicense {
+  id          String       @id @default(cuid())
+  code        String       @unique
+  examId      String
+  boundUserId String?
+  boundOpenId String?
+  boundAt     DateTime?
+  createdAt   DateTime     @default(now())
+  exam        Exam         @relation(fields: [examId], references: [id], onDelete: Cascade)
+  session     ExamSession?
+
+  @@index([examId])
+}
+
+model ExamSession {
+  id              String            @id @default(cuid())
+  examId          String
+  userId          String
+  licenseId       String            @unique
+  startedAt       DateTime          @default(now())
+  submittedAt     DateTime?
+  status          ExamSessionStatus @default(in_progress)
+  objectiveScore  Float?
+  subjectiveScore Float?
+  totalScore      Float?
+  rank            Int?
+  hideCount       Int               @default(0)
+  hideDurationMs  Int               @default(0)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  exam            Exam              @relation(fields: [examId], references: [id])
+  user            User              @relation(fields: [userId], references: [id])
+  license         ExamLicense       @relation(fields: [licenseId], references: [id])
+  answers         ExamAnswer[]
+  comment         ExamComment?
+
+  @@index([examId])
+  @@index([userId])
+}
+
+model ExamAnswer {
+  id         String       @id @default(cuid())
+  sessionId  String
+  questionId String
+  answer     String?
+  isCorrect  Boolean?
+  score      Float?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  session    ExamSession  @relation(fields: [sessionId], references: [id])
+  question   ExamQuestion @relation(fields: [questionId], references: [id])
+
+  @@unique([sessionId, questionId])
+}
+
+model ExamComment {
+  id        String      @id @default(cuid())
+  sessionId String      @unique
+  content   String
+  createdBy String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  session   ExamSession @relation(fields: [sessionId], references: [id])
 }

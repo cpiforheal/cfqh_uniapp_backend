@@ -4,6 +4,15 @@ import { Avatar, Button, Space, Tag, Typography } from 'antd'
 import { getAdminSessionToken } from '@/services/adminApi'
 import { logoutAdmin, queryCurrentAdmin, type AdminUser } from '@/services/adminAuth'
 
+if (typeof window !== 'undefined') {
+  window.addEventListener('error', (event) => {
+    const target = event.target as HTMLElement
+    if (target instanceof HTMLScriptElement && target.src?.includes('.async.js')) {
+      window.location.reload()
+    }
+  }, true)
+}
+
 interface InitialState {
   name: string
   currentAdmin?: AdminUser | null

@@ -1,0 +1,180 @@
+.resultPage {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #ecfdf5 0%, #f6fcfa 100%);
+  padding: 32px 24px;
+}
+
+.pendingCard {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 48px 32px;
+  text-align: center;
+  box-shadow: 0 4px 20px rgba(15, 77, 82, 0.06);
+}
+
+.pendingIcon {
+  font-size: 80px;
+  margin-bottom: 24px;
+}
+
+.pendingText {
+  font-size: 30px;
+  color: #6b8a8a;
+}
+
+.scoreCard {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 40px 32px;
+  text-align: center;
+  box-shadow: 0 4px 20px rgba(15, 77, 82, 0.06);
+  margin-bottom: 24px;
+}
+
+.examTitle {
+  font-size: 28px;
+  color: #6b8a8a;
+  margin-bottom: 16px;
+}
+
+.totalScore {
+  font-size: 72px;
+  font-weight: 800;
+  color: #13a8a8;
+}
+
+.scoreUnit {
+  font-size: 28px;
+  color: #6b8a8a;
+  margin-left: 4px;
+}
+
+.scoreBreakdown {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  margin-top: 20px;
+}
+
+.breakdownItem {
+  text-align: center;
+}
+
+.breakdownLabel {
+  font-size: 24px;
+  color: #6b8a8a;
+}
+
+.breakdownValue {
+  font-size: 30px;
+  font-weight: 700;
+  color: #1a3a3a;
+  margin-top: 4px;
+}
+
+.rankCard {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 24px 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 20px rgba(15, 77, 82, 0.06);
+  margin-bottom: 24px;
+}
+
+.rankLabel {
+  font-size: 28px;
+  color: #6b8a8a;
+}
+
+.rankValue {
+  font-size: 36px;
+  font-weight: 700;
+  color: #13a8a8;
+}
+
+.commentCard {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(15, 77, 82, 0.06);
+  margin-bottom: 24px;
+}
+
+.commentTitle {
+  font-size: 26px;
+  font-weight: 600;
+  color: #1a3a3a;
+  margin-bottom: 12px;
+}
+
+.commentContent {
+  font-size: 28px;
+  color: #4a6a6a;
+  line-height: 1.6;
+}
+
+.analysisSection {
+  margin-top: 24px;
+}
+
+.analysisTitle {
+  font-size: 28px;
+  font-weight: 600;
+  color: #1a3a3a;
+  margin-bottom: 16px;
+}
+
+.answerItem {
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 10px rgba(15, 77, 82, 0.04);
+}
+
+.answerHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.answerSeq {
+  font-size: 26px;
+  font-weight: 600;
+  color: #1a3a3a;
+}
+
+.answerCorrect {
+  font-size: 24px;
+  color: #52c41a;
+  font-weight: 600;
+}
+
+.answerWrong {
+  font-size: 24px;
+  color: #ff4d4f;
+  font-weight: 600;
+}
+
+.answerStem {
+  font-size: 26px;
+  color: #4a6a6a;
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.answerDetail {
+  font-size: 24px;
+  color: #6b8a8a;
+  line-height: 1.5;
+}
+
+.analysisText {
+  font-size: 24px;
+  color: #13a8a8;
+  margin-top: 8px;
+  line-height: 1.5;
+}

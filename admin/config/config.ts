@@ -177,10 +177,14 @@ export default defineConfig({
       ],
     },
     {
-      path: '/nursing/video-lessons',
-      name: '四模块视频分发',
-      icon: 'PlaySquareOutlined',
-      component: './VideoLessons',
+      path: '/nursing/exams',
+      name: '在线模考管理',
+      icon: 'FormOutlined',
+      routes: [
+        { path: '/nursing/exams', redirect: '/nursing/exams/list' },
+        { path: '/nursing/exams/list', name: '考试列表', component: './Exams' },
+        { path: '/nursing/exams/:id', name: '考试详情', component: './ExamDetail', hideInMenu: true },
+      ],
     },
     {
       path: '/nursing/assets',
@@ -238,4 +242,14 @@ export default defineConfig({
     },
   ],
   npmClient: 'pnpm',
+  chainWebpack(config) {
+    config.optimization.splitChunks({
+      chunks: 'all',
+      cacheGroups: {
+        katex: { test: /[\\/]node_modules[\\/]katex/, name: 'katex', priority: 20 },
+        antd: { test: /[\\/]node_modules[\\/](antd|@ant-design)/, name: 'antd', priority: 15 },
+        vendors: { test: /[\\/]node_modules[\\/]/, name: 'vendors', priority: 10 },
+      },
+    })
+  },
 })

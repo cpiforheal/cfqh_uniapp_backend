@@ -140,7 +140,6 @@ export default function ProfilePage() {
     queryClient.invalidateQueries({ queryKey: ['profileOverview'] })
     queryClient.invalidateQueries({ queryKey: ['moduleQuestions'] })
     queryClient.invalidateQueries({ queryKey: ['questionDetail'] })
-    queryClient.invalidateQueries({ queryKey: ['videoLessons'] })
     setReplaceVisible(false)
     Taro.showToast({ title: '已更换通行码', icon: 'success' })
     refetch()
