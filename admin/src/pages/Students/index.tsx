@@ -1,7 +1,8 @@
 import { ProColumns, ProTable, StatisticCard } from '@ant-design/pro-components'
-import { Alert, Button, Col, Empty, Input, Popconfirm, Progress, Row, Select, Space, Tag, Typography, message } from 'antd'
+import { Alert, Avatar, Button, Col, Empty, Input, Popconfirm, Progress, Row, Select, Space, Tag, Typography, message } from 'antd'
 import { useRef, useState } from 'react'
 import type { ActionType } from '@ant-design/pro-components'
+import { UserOutlined } from '@ant-design/icons'
 import { SubjectAwarePageContainer } from '@/components/SubjectAwarePageContainer'
 import { adminFetch, describeAdminFetchError } from '@/services/adminApi'
 import { disableStudentLicenseToken, extendStudentLicenseToken, issueStudentLicenseToken, issueUnboundLicenseToken, queryAdminExportStudents } from '@/services/adminNursing'
@@ -51,17 +52,20 @@ export default function StudentsPage() {
       dataIndex: 'nickname',
       width: 280,
       render: (_, record) => (
-        <Space direction="vertical" size={0} style={{ width: '100%', minWidth: 0 }}>
-          <Typography.Text strong style={{ display: 'block', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {record.nickname || '微信用户'}
-          </Typography.Text>
-          <Typography.Text
-            type="secondary"
-            copyable={{ text: record.openId }}
-            style={{ display: 'block', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}
-          >
-            {record.openId}
-          </Typography.Text>
+        <Space size={8} align="center">
+          <Avatar size={36} src={record.avatarUrl || undefined} icon={!record.avatarUrl ? <UserOutlined /> : undefined} />
+          <Space direction="vertical" size={0} style={{ minWidth: 0 }}>
+            <Typography.Text strong style={{ display: 'block', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {record.nickname || '微信用户'}
+            </Typography.Text>
+            <Typography.Text
+              type="secondary"
+              copyable={{ text: record.openId }}
+              style={{ display: 'block', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}
+            >
+              {record.openId.slice(0, 12)}...
+            </Typography.Text>
+          </Space>
         </Space>
       ),
     },

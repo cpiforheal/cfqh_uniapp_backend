@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { View, Text, Input, Button } from '@tarojs/components'
-import Taro from '@tarojs/taro'
+import Taro, { useDidShow } from '@tarojs/taro'
 import { joinExam, getActiveExamSession, getExamHistory } from '../../services/nursing'
 import type { ExamSessionInfo, ExamHistoryItem } from '../../services/nursing'
 import styles from './index.module.scss'
@@ -11,9 +11,9 @@ export default function ExamPage() {
   const [activeSession, setActiveSession] = useState<ExamSessionInfo | null>(null)
   const [history, setHistory] = useState<ExamHistoryItem[]>([])
 
-  useEffect(() => {
+  useDidShow(() => {
     loadData()
-  }, [])
+  })
 
   async function loadData() {
     try {

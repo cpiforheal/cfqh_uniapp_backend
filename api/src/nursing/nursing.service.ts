@@ -509,6 +509,7 @@ export class NursingService {
     })()
     const progressDone = new Set(records.map((record) => record.questionId)).size
     const progressTotal = questions.length
+    const practiceDaySet = new Set(records.map((record) => record.createdAt.toISOString().slice(0, 10)))
 
     return {
       subjectCode: 'nursing',
@@ -519,6 +520,7 @@ export class NursingService {
         total: progressTotal,
         percent: progressTotal > 0 ? Math.round((progressDone / progressTotal) * 100) : 0,
       },
+      weeklyCompletedCount: practiceDaySet.size,
       continueQuestion: continueQuestion ? this.serializeQuestion(continueQuestion) : null,
       dailyPractice: daily,
       dailyQuestion: dailyQuestion ? this.serializeQuestion(dailyQuestion) : null,
@@ -544,6 +546,7 @@ export class NursingService {
           id: true,
           openId: true,
           nickname: true,
+          avatarUrl: true,
           createdAt: true,
           loginCount: true,
           lastLoginAt: true,
@@ -623,6 +626,7 @@ export class NursingService {
         userId: user.id,
         openId: user.openId,
         nickname: user.nickname || '微信用户',
+        avatarUrl: user.avatarUrl || null,
         practiceCount: userRecords.length,
         correctRate: userRecords.length > 0 ? Math.round((correct / userRecords.length) * 100) : 0,
         mistakeCount: userMistakes.reduce((sum, mistake) => sum + mistake.wrongCount, 0),
@@ -1401,6 +1405,22 @@ export class NursingService {
     const created = await this.prisma.question.create({ data })
     await this.recordAdminAudit('question.create', created.id, { title, status })
     return created
+  }
+
+  async batchPublishQuestions(dto: { ids?: string[]; filter?: { status?: string; moduleCode?: string } }) {
+    const where: Record<string, unknown> = { subjectCode: SubjectCode.nursing, status: ContentStatus.draft }
+    if (dto.ids?.length) {
+      where.id = { in: dto.ids }
+    }
+    if (dto.filter?.moduleCode) {
+      where.moduleCode = dto.filter.moduleCode
+    }
+    const result = await this.prisma.question.updateMany({
+      where: where as any,
+      data: { status: ContentStatus.published },
+    })
+    await this.recordAdminAudit('question.batch_publish', '-', { count: result.count, filter: dto.filter })
+    return { published: result.count }
   }
 
   async previewQuestionImport(questionDoc: Buffer, questionDocName: string, answerDoc?: Buffer) {

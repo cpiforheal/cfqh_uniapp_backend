@@ -247,16 +247,7 @@ export default defineConfig({
   ...(isProduction
     ? {
         esbuildMinifyIIFE: true,
-        chainWebpack(config: any) {
-          config.optimization.splitChunks({
-            chunks: 'all',
-            cacheGroups: {
-              katex: { test: /[\\/]node_modules[\\/]katex/, name: 'katex', priority: 20 },
-              antd: { test: /[\\/]node_modules[\\/](antd|@ant-design)/, name: 'antd', priority: 15 },
-              vendors: { test: /[\\/]node_modules[\\/]/, name: 'vendors', priority: 10 },
-            },
-          })
-        },
+        codeSplitting: { jsStrategy: 'granularChunks' },
       }
     : {}),
 })

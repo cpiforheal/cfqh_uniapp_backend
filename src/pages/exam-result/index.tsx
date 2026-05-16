@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react'
-import { View, Text } from '@tarojs/components'
+import { View, Text, Image } from '@tarojs/components'
 import Taro, { useRouter } from '@tarojs/taro'
-import { getExamResult } from '../../services/nursing'
-import type { ExamResultInfo } from '../../services/nursing'
+import { getExamResult, getExamLeaderboard } from '../../services/nursing'
+import type { ExamResultInfo, LeaderboardEntry } from '../../services/nursing'
 import styles from './index.module.scss'
 
 export default function ExamResultPage() {
   const router = useRouter()
   const sessionId = router.params.sessionId || ''
   const [result, setResult] = useState<ExamResultInfo | null>(null)
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
 
   useEffect(() => {
     if (sessionId) loadResult()
@@ -16,8 +17,12 @@ export default function ExamResultPage() {
 
   async function loadResult() {
     try {
-      const data = await getExamResult(sessionId)
+      const [data, lb] = await Promise.all([
+        getExamResult(sessionId),
+        getExamLeaderboard(sessionId).catch(() => ({ published: false, leaderboard: [] })),
+      ])
       setResult(data)
+      if (lb.published) setLeaderboard(lb.leaderboard)
     } catch {
       Taro.showToast({ title: '加载失败', icon: 'none' })
     }
@@ -79,6 +84,82 @@ export default function ExamResultPage() {
           <Text className={styles.rankValue}>
             第 {result.rank ?? '-'} 名 / 共 {result.totalStudents ?? 0} 人
           </Text>
+        </View>
+      )}
+
+      {leaderboard.length > 0 && (
+        <View className={styles.leaderboardSection}>
+          <Text className={styles.leaderboardTitle}>考试排行榜</Text>
+          <View className={styles.podium}>
+            {leaderboard.length >= 2 && (
+              <View className={`${styles.podiumItem} ${styles.podiumSecond}`}>
+                <View className={styles.podiumAvatar}>
+                  {leaderboard[1].avatarUrl ? (
+                    <Image className={styles.podiumAvatarImg} src={leaderboard[1].avatarUrl} mode="aspectFill" />
+                  ) : (
+                    <Text className={styles.podiumAvatarText}>2</Text>
+                  )}
+                </View>
+                <Text className={styles.podiumName}>{leaderboard[1].nickname}</Text>
+                <Text className={styles.podiumScore}>{leaderboard[1].totalScore}分</Text>
+                <View className={`${styles.podiumBar} ${styles.podiumBarSecond}`}>
+                  <Text className={styles.podiumRankText}>2</Text>
+                </View>
+              </View>
+            )}
+            {leaderboard.length >= 1 && (
+              <View className={`${styles.podiumItem} ${styles.podiumFirst}`}>
+                <Text className={styles.podiumCrown}>👑</Text>
+                <View className={styles.podiumAvatar}>
+                  {leaderboard[0].avatarUrl ? (
+                    <Image className={styles.podiumAvatarImg} src={leaderboard[0].avatarUrl} mode="aspectFill" />
+                  ) : (
+                    <Text className={styles.podiumAvatarText}>1</Text>
+                  )}
+                </View>
+                <Text className={styles.podiumName}>{leaderboard[0].nickname}</Text>
+                <Text className={styles.podiumScore}>{leaderboard[0].totalScore}分</Text>
+                <View className={`${styles.podiumBar} ${styles.podiumBarFirst}`}>
+                  <Text className={styles.podiumRankText}>1</Text>
+                </View>
+              </View>
+            )}
+            {leaderboard.length >= 3 && (
+              <View className={`${styles.podiumItem} ${styles.podiumThird}`}>
+                <View className={styles.podiumAvatar}>
+                  {leaderboard[2].avatarUrl ? (
+                    <Image className={styles.podiumAvatarImg} src={leaderboard[2].avatarUrl} mode="aspectFill" />
+                  ) : (
+                    <Text className={styles.podiumAvatarText}>3</Text>
+                  )}
+                </View>
+                <Text className={styles.podiumName}>{leaderboard[2].nickname}</Text>
+                <Text className={styles.podiumScore}>{leaderboard[2].totalScore}分</Text>
+                <View className={`${styles.podiumBar} ${styles.podiumBarThird}`}>
+                  <Text className={styles.podiumRankText}>3</Text>
+                </View>
+              </View>
+            )}
+          </View>
+          {leaderboard.slice(3).map((entry) => (
+            <View key={entry.rank} className={styles.leaderboardRow}>
+              <Text className={styles.leaderboardRank}>{entry.rank}</Text>
+              <View className={styles.leaderboardAvatar}>
+                {entry.avatarUrl ? (
+                  <Image className={styles.leaderboardAvatarImg} src={entry.avatarUrl} mode="aspectFill" />
+                ) : (
+                  <Text className={styles.leaderboardAvatarText}>{entry.nickname.slice(0, 1)}</Text>
+                )}
+              </View>
+              <View className={styles.leaderboardInfo}>
+                <Text className={styles.leaderboardName}>{entry.nickname}</Text>
+                <Text className={styles.leaderboardMeta}>
+                  {entry.durationText || '-'} · 正确率{entry.correctRate ?? 0}%
+                </Text>
+              </View>
+              <Text className={styles.leaderboardScore}>{entry.totalScore}分</Text>
+            </View>
+          ))}
         </View>
       )}
 

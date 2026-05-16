@@ -507,6 +507,42 @@ export class ExamService {
     })
   }
 
+  async getLeaderboard(sessionId: string, openId: string) {
+    const session = await this.verifySessionOwner(sessionId, openId)
+    if (session.exam.status !== ExamStatus.published) {
+      return { published: false, leaderboard: [] }
+    }
+
+    const sessions = await this.prisma.examSession.findMany({
+      where: { examId: session.examId, status: { in: [ExamSessionStatus.graded, ExamSessionStatus.submitted] } },
+      include: { user: { select: { nickname: true, avatarUrl: true } } },
+      orderBy: [{ totalScore: 'desc' }, { submittedAt: 'asc' }],
+      take: 10,
+    })
+
+    const totalQuestions = await this.prisma.examQuestion.count({ where: { examId: session.examId } })
+
+    const leaderboard = sessions.map((s, idx) => {
+      const durationMs = s.submittedAt && s.startedAt
+        ? s.submittedAt.getTime() - s.startedAt.getTime()
+        : null
+      return {
+        rank: idx + 1,
+        nickname: s.user.nickname || '微信用户',
+        avatarUrl: s.user.avatarUrl || null,
+        totalScore: s.totalScore ?? 0,
+        objectiveScore: s.objectiveScore ?? 0,
+        durationMs,
+        durationText: durationMs ? `${Math.floor(durationMs / 60000)}分${Math.floor((durationMs % 60000) / 1000)}秒` : null,
+        correctRate: totalQuestions > 0 && s.objectiveScore != null
+          ? Math.round((s.objectiveScore / (session.exam.totalScore || 1)) * 100)
+          : null,
+      }
+    })
+
+    return { published: true, leaderboard }
+  }
+
   // ─── Private ────────────────────────────────────────────────────────────────
 
   private async autoSubmit(sessionId: string) {

@@ -200,6 +200,12 @@ export class NursingController {
   }
 
   @UseGuards(AdminGuard)
+  @Post('admin/questions/batch-publish')
+  batchPublishQuestions(@Body() dto: { ids?: string[]; filter?: { status?: string; moduleCode?: string } }) {
+    return this.nursingService.batchPublishQuestions(dto)
+  }
+
+  @UseGuards(AdminGuard)
   @Delete('admin/questions/:id')
   deleteAdminQuestion(@Param('id') id: string) {
     return this.nursingService.deleteAdminQuestion(id)

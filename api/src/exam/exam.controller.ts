@@ -67,4 +67,10 @@ export class ExamController {
     const openId = requireCurrentOpenId(req, this.configService)
     return this.examService.getExamResult(sessionId, openId)
   }
+
+  @Get(':sessionId/leaderboard')
+  leaderboard(@Param('sessionId') sessionId: string, @Req() req: any) {
+    const openId = requireCurrentOpenId(req, this.configService)
+    return this.examService.getLeaderboard(sessionId, openId)
+  }
 }

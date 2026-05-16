@@ -273,48 +273,48 @@ export default function ProblemsPage() {
       return
     }
 
-    const invalidRows = selectedRows
-      .map((record) => {
-        const issues = getProblemPublishIssues(record)
-        if (record.status !== 'draft') issues.unshift('仅草稿题支持批量发布')
-        return { record, issues }
-      })
-      .filter((item) => item.issues.length > 0)
-
-    if (invalidRows.length > 0) {
-      Modal.warning({
-        title: '批量发布校验未通过',
-        width: 620,
-        content: (
-          <Space direction="vertical" size={6}>
-            <Typography.Text>批量发布只允许发布完整草稿题，请先处理以下题目：</Typography.Text>
-            {invalidRows.slice(0, 8).map(({ record, issues }) => (
-              <Typography.Text key={record.id}>
-                • {record.title || record.id}：{issues.join('、')}
-              </Typography.Text>
-            ))}
-            {invalidRows.length > 8 && <Typography.Text type="secondary">还有 {invalidRows.length - 8} 道未展示。</Typography.Text>}
-          </Space>
-        ),
-      })
+    const draftRows = selectedRows.filter((r) => r.status === 'draft')
+    if (draftRows.length === 0) {
+      message.warning('所选题目中没有草稿状态的题目')
       return
     }
 
     try {
-      await Promise.all(selectedRows.map((record) => {
-        const nextRecord: Problem = { ...record, status: 'published', updatedAt: new Date().toISOString().slice(0, 10) }
-        return syncProblemToBackend(nextRecord).then(() => {
-          updateNursingEntityStatus('problems', record.id, 'published')
-          appendAdminOperationLog({ type: 'problem_publish', targetId: record.id, targetTitle: record.title })
-        })
-      }))
-      message.success(`已发布 ${selectedRows.length} 道草稿题，并同步到小程序题库`)
+      const result = await adminFetch<{ published: number }>('/admin/questions/batch-publish', {
+        method: 'POST',
+        body: JSON.stringify({ ids: draftRows.map((r) => r.id) }),
+      })
+      message.success(`已发布 ${result?.published ?? draftRows.length} 道草稿题`)
       setSelectedRows([])
       reload()
     } catch (error) {
       console.warn('batch publish problems failed', error)
-      message.error('批量发布同步失败，请检查后端服务')
+      message.error('批量发布失败，请检查后端服务')
     }
+  }
+
+  async function handleBatchPublishAll() {
+    const filterPayload: { status?: string; moduleCode?: string } = {}
+    if (activeModuleCode !== 'all') filterPayload.moduleCode = activeModuleCode
+
+    Modal.confirm({
+      title: '发布全部草稿题',
+      content: `确认将${activeModuleCode === 'all' ? '所有模块' : nursingModuleNameMap[activeModuleCode] || activeModuleCode}的全部草稿题发布到小程序题库？`,
+      okText: '确认发布',
+      onOk: async () => {
+        try {
+          const result = await adminFetch<{ published: number }>('/admin/questions/batch-publish', {
+            method: 'POST',
+            body: JSON.stringify({ filter: filterPayload }),
+          })
+          message.success(`已发布 ${result?.published ?? 0} 道草稿题`)
+          reload()
+        } catch (error) {
+          console.warn('batch publish all failed', error)
+          message.error('批量发布失败，请检查后端服务')
+        }
+      },
+    })
   }
 
   const columns: ProColumns<ProblemRow>[] = isNursing ? [
@@ -442,7 +442,8 @@ export default function ProblemsPage() {
         }}
         toolBarRender={() => [
           <Tag key="visible-rule" icon={<CheckCircleOutlined />} color="green">仅已发布同步小程序可见</Tag>,
-          <Button key="batch-publish" disabled={selectedRows.length === 0} onClick={handleBatchPublish}>批量发布草稿</Button>,
+          <Button key="batch-publish" disabled={selectedRows.length === 0} onClick={handleBatchPublish}>批量发布所选</Button>,
+          <Button key="batch-publish-all" onClick={handleBatchPublishAll}>发布全部草稿</Button>,
           <Button type="primary" key="create" icon={<RocketOutlined />} onClick={openCreate}>新增题目</Button>,
         ]}
       />

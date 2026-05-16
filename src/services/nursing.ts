@@ -148,6 +148,7 @@ interface ApiPracticeHome {
   subjectName: string
   authorization?: { status: string }
   progress?: { done: number; total: number; percent: number }
+  weeklyCompletedCount?: number
   continueQuestion?: ApiQuestion | null
   dailyQuestion?: ApiQuestion | null
   recommendedQuestions?: ApiQuestion[]
@@ -489,6 +490,7 @@ export async function getPracticeHomeOverview(): Promise<PracticeHomeOverview> {
     subjectName: home.subjectName || '医护大类',
     authorization: normalizeAuthorization(licenseStatus),
     progress: home.progress || practiceHomeMock.progress,
+    weeklyCompletedCount: home.weeklyCompletedCount ?? 0,
     todayProblem,
     dailyQuestion,
     continueQuestion,
@@ -833,6 +835,28 @@ export async function getExamResult(sessionId: string): Promise<ExamResultInfo> 
   const result = await request<ExamResultInfo>(`/exams/${sessionId}/result${openId ? `?openId=${openId}` : ''}`)
   if (!result) throw new Error('exam_result_request_failed')
   return result
+}
+
+export interface LeaderboardEntry {
+  rank: number
+  nickname: string
+  avatarUrl: string | null
+  totalScore: number
+  objectiveScore: number
+  durationMs: number | null
+  durationText: string | null
+  correctRate: number | null
+}
+
+export interface LeaderboardResult {
+  published: boolean
+  leaderboard: LeaderboardEntry[]
+}
+
+export async function getExamLeaderboard(sessionId: string): Promise<LeaderboardResult> {
+  const openId = await ensureLogin()
+  const result = await request<LeaderboardResult>(`/exams/${sessionId}/leaderboard${openId ? `?openId=${openId}` : ''}`)
+  return result || { published: false, leaderboard: [] }
 }
 
 export async function getExamHistory(): Promise<ExamHistoryItem[]> {
