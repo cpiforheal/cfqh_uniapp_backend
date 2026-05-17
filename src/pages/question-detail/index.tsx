@@ -36,6 +36,7 @@ export default function QuestionDetailPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isError, setIsError] = useState(false)
   const [loadErrorText, setLoadErrorText] = useState('请确认通行码仍有效，或稍后下拉重试。')
+  const authorizedRef = useRef(false)
 
   const setAuthorized = useAuthStore((state) => state.setAuthorized)
   const { settings, hydrate: hydrateSettings } = useSettingsStore()
@@ -45,20 +46,21 @@ export default function QuestionDetailPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const startTimeRef = useRef<number>(0)
 
-  const loadQuestionDetail = useCallback(async () => {
+  const checkAuthAndLoad = useCallback(async () => {
     setCheckingAuthorization(true)
     setIsLoading(true)
     setIsError(false)
     setLoadErrorText('请确认通行码仍有效，或稍后下拉重试。')
     try {
       const status = await getLicenseStatus()
-      setServerAuthorized(Boolean(status.authorized))
+      const isAuthed = Boolean(status.authorized)
+      setServerAuthorized(isAuthed)
+      authorizedRef.current = isAuthed
       setCheckingAuthorization(false)
-      if (!status.authorized) {
+      if (!isAuthed) {
         setData(null)
         return
       }
-
       const tokenCode = status.authorization?.licenseToken?.code
       if (tokenCode) setAuthorized(tokenCode, status.authorization?.expiresAt)
       if (!questionId) {
@@ -77,6 +79,29 @@ export default function QuestionDetailPage() {
       setIsLoading(false)
     }
   }, [questionId, setAuthorized])
+
+  const loadQuestionOnly = useCallback(async () => {
+    if (!questionId) return
+    setIsLoading(true)
+    setIsError(false)
+    try {
+      setData(await getQuestionDetail(questionId))
+    } catch (error) {
+      console.warn('question detail load failed', error)
+      setIsError(true)
+      setData(null)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [questionId])
+
+  const loadQuestionDetail = useCallback(async () => {
+    if (authorizedRef.current) {
+      await loadQuestionOnly()
+    } else {
+      await checkAuthAndLoad()
+    }
+  }, [checkAuthAndLoad, loadQuestionOnly])
 
   useEffect(() => {
     setSelected('')
