@@ -520,7 +520,11 @@ export class ExamService {
       take: 10,
     })
 
-    const totalQuestions = await this.prisma.examQuestion.count({ where: { examId: session.examId } })
+    const objectiveQuestions = await this.prisma.examQuestion.findMany({
+      where: { examId: session.examId, isObjective: true },
+      select: { score: true },
+    })
+    const objectiveMaxScore = objectiveQuestions.reduce((sum, q) => sum + q.score, 0)
 
     const leaderboard = sessions.map((s, idx) => {
       const durationMs = s.submittedAt && s.startedAt
@@ -534,8 +538,8 @@ export class ExamService {
         objectiveScore: s.objectiveScore ?? 0,
         durationMs,
         durationText: durationMs ? `${Math.floor(durationMs / 60000)}分${Math.floor((durationMs % 60000) / 1000)}秒` : null,
-        correctRate: totalQuestions > 0 && s.objectiveScore != null
-          ? Math.round((s.objectiveScore / (session.exam.totalScore || 1)) * 100)
+        correctRate: objectiveMaxScore > 0 && s.objectiveScore != null
+          ? Math.round((s.objectiveScore / objectiveMaxScore) * 100)
           : null,
       }
     })

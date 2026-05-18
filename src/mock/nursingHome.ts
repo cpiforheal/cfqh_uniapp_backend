@@ -4,7 +4,7 @@ export const nursingHomeOverviewMock: HomeOverview = {
   subjectCode: 'nursing',
   subjectName: '医护大类',
   completedToday: false,
-  weeklyCompletedCount: 4,
+  weeklyCompletedCount: 0,
   suggestion: '今天建议先复习“生命体征观察”核心概念，再完成 1 组案例判断题，重点关注易混点。',
   todayProblem: {
     id: 'nursing-problem-001',

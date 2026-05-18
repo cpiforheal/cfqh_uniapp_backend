@@ -127,6 +127,28 @@ export class PracticeService {
     })
   }
 
+  async resetChapterRecords(openId: string, moduleCode: string, chapter: string) {
+    if (!moduleCode || !chapter) throw new NotFoundException('缺少 moduleCode 或 chapter 参数')
+    const userId = await this.getUserId(openId)
+    const questions = await this.prisma.question.findMany({
+      where: { moduleCode, chapter, status: 'published', subjectCode: 'nursing' },
+      select: { id: true },
+    })
+    if (questions.length === 0) return { deleted: 0 }
+    const questionIds = questions.map((q) => q.id)
+
+    const [recordResult, mistakeResult] = await Promise.all([
+      this.prisma.practiceRecord.deleteMany({
+        where: { userId, questionId: { in: questionIds } },
+      }),
+      this.prisma.mistake.deleteMany({
+        where: { userId, questionId: { in: questionIds } },
+      }),
+    ])
+
+    return { deleted: recordResult.count, mistakesCleared: mistakeResult.count, chapter, moduleCode }
+  }
+
   async reviewToday(openId: string) {
     const userId = await this.getUserId(openId)
     const now = new Date()

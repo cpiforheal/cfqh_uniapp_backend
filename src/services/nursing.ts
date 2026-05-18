@@ -105,6 +105,7 @@ interface ApiQuestion {
   difficulty: Difficulty
   knowledgeTags: string
   chapter?: string
+  moduleCode?: string
   options?: QuestionOption[]
   answer?: string
   analysis?: string
@@ -387,6 +388,7 @@ function normalizeQuestion(input: Partial<ApiQuestion> & { knowledgePoints?: Kno
     isMistake: Boolean(input.isMistake || input.inMistakeBook || (input.wrongCount && input.wrongCount > 0)),
     wrongCount: input.wrongCount || 0,
     chapter: input.chapter,
+    moduleCode: input.moduleCode,
   }
 }
 
@@ -696,6 +698,13 @@ export async function addFavorite(questionId: string) {
 export async function getRanking(type: string) {
   const result = await request<{ list: Array<{ openId: string; nickname: string; value: number }>; me?: { rank: number; value: number } }>(`/ranking?type=${type}`)
   return result || { list: [], me: null }
+}
+
+export async function resetChapterRecords(moduleCode: string, chapter: string) {
+  return request<{ deleted: number; mistakesCleared: number; chapter: string; moduleCode: string }>(
+    `/practice-records/chapter?moduleCode=${encodeURIComponent(moduleCode)}&chapter=${encodeURIComponent(chapter)}`,
+    { method: 'DELETE' },
+  )
 }
 
 export interface HomeConfig {

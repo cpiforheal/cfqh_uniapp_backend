@@ -45,7 +45,7 @@ export const practiceHomeMock: PracticeHomeOverview = {
   dailyQuestion,
   continueQuestion,
   recommendedQuestions: [dailyQuestion],
-  weeklyCompletedCount: 4,
+  weeklyCompletedCount: 0,
   recentMistakes: [
     {
       id: 'q-003',

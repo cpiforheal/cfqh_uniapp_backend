@@ -2,7 +2,7 @@
 
 .page {
   min-height: 100vh;
-  padding: 34px 24px 150px;
+  padding: 34px 24px 260px;
   background: $color-bg-page;
   box-sizing: border-box;
 }
@@ -251,7 +251,7 @@
   position: fixed;
   left: 24px;
   right: 24px;
-  bottom: 26px;
+  bottom: 126px;
   gap: 18px;
   padding: 12px 0;
   background: rgba(244, 248, 248, 0.94);
@@ -361,4 +361,155 @@
   color: #ffffff;
   font-size: $font-title;
   font-weight: 800;
+}
+
+// ===== 【功能1】模式切换 Tab =====
+.modeSwitch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 12px;
+  padding: 6px;
+  border-radius: $radius-pill;
+  background: $color-bg-subtle;
+  border: 1px solid $color-border;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.modeTab {
+  padding: 12px 28px;
+  border-radius: $radius-pill;
+  transition: background 0.2s;
+}
+
+.modeTabActive {
+  background: $color-primary;
+  box-shadow: $shadow-primary;
+}
+
+.modeTabText {
+  font-size: 24px;
+  font-weight: 700;
+  color: $color-text-muted;
+}
+
+.modeTabTextActive {
+  color: #ffffff;
+}
+
+// ===== 【功能1】答题卡弹窗 =====
+.sheetMask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.sheetPanel {
+  width: 100%;
+  max-height: 70vh;
+  padding: 32px 24px 48px;
+  border-radius: $radius-lg $radius-lg 0 0;
+  background: #ffffff;
+  overflow-y: auto;
+}
+
+.sheetHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.sheetTitle {
+  font-size: $font-title;
+  font-weight: 800;
+  color: $color-text-primary;
+}
+
+.sheetClose {
+  font-size: $font-body;
+  color: $color-text-muted;
+}
+
+.sheetGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.sheetCell {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-sm;
+  border: 1px solid $color-border;
+  background: #ffffff;
+}
+
+.sheetCellCurrent {
+  background: $color-primary;
+  border-color: $color-primary;
+}
+
+.sheetCellCurrent .sheetCellText {
+  color: #ffffff;
+}
+
+.sheetCellDone {
+  background: $color-primary-soft;
+  border-color: $color-primary;
+}
+
+.sheetCellText {
+  font-size: 24px;
+  font-weight: 700;
+  color: $color-text-regular;
+}
+
+// ===== 【功能4】底部工具栏 =====
+.toolBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  background: rgba(255, 255, 255, 0.95);
+  border-top: 1px solid $color-border;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.toolItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.toolIcon {
+  font-size: 36px;
+  color: $color-text-muted;
+}
+
+.toolLabel {
+  font-size: 20px;
+  color: $color-text-muted;
+}
+
+.toolItem:active {
+  opacity: 0.7;
 }

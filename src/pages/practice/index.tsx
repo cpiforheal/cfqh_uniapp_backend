@@ -168,7 +168,10 @@ export default function PracticePage() {
   function goQuestion(questionId?: string) {
     const targetId = questionId || data.dailyQuestion?.id
     if (!targetId) return
-    Taro.navigateTo({ url: `/pages/question-detail/index?id=${targetId}` })
+    const allQuestions = [data.continueQuestion, data.dailyQuestion, ...(data.recommendedQuestions || []), ...(data.recentMistakes || [])].filter(Boolean)
+    const matched = allQuestions.find((q) => q?.id === targetId)
+    const mc = matched?.moduleCode || ''
+    Taro.navigateTo({ url: `/pages/question-detail/index?id=${targetId}${mc ? `&moduleCode=${encodeURIComponent(mc)}` : ''}` })
   }
 
   const percent = progress?.percent || 0
@@ -237,14 +240,14 @@ export default function PracticePage() {
         ) : (
           <Text className={styles.title}>今日练习</Text>
         )}
-        <Text className={styles.statsInline}>🎯 {dailyDone}/{dailyGoal} 今日目标 · 🔥 连续 {data.weeklyCompletedCount || 0} 天</Text>
+        <Text className={styles.statsInline}>🎯 {dailyDone}/{dailyGoal} 今日目标 · 🔥 本周 {data.weeklyCompletedCount || 0} 天</Text>
       </View>
 
       <View className={styles.capsuleRow}>
         <View className={styles.capsule}>
           <Text className={styles.capsuleValue}>{data.weeklyCompletedCount || 0}</Text>
           <Text className={styles.capsuleUnit}> 天</Text>
-          <Text className={styles.capsuleLabel}>坚持</Text>
+          <Text className={styles.capsuleLabel}>本周</Text>
         </View>
         <View className={styles.capsule}>
           <Text className={styles.capsuleValue}>{Math.round((progress?.done || 0) / Math.max(progress?.total || 1, 1) * 100)}</Text>

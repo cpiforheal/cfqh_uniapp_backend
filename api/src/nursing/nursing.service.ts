@@ -365,22 +365,23 @@ export class NursingService {
   }
 
   async questionDetail(id: string, openId?: string) {
-    const [question, allQuestions, user] = await Promise.all([
+    const [question, user] = await Promise.all([
       this.prisma.question.findFirst({
         where: { id, subjectCode: SubjectCode.nursing, status: ContentStatus.published },
-      }),
-      this.prisma.question.findMany({
-        where: { subjectCode: SubjectCode.nursing, status: ContentStatus.published },
-        select: { id: true },
-        orderBy: [{ chapterSort: 'asc' }, { updatedAt: 'desc' }],
       }),
       this.getUserByOpenId(openId),
     ])
     if (!question) throw new NotFoundException('题目不存在')
 
+    const moduleQuestions = await this.prisma.question.findMany({
+      where: { subjectCode: SubjectCode.nursing, status: ContentStatus.published, moduleCode: question.moduleCode },
+      select: { id: true },
+      orderBy: [{ chapterSort: 'asc' }, { updatedAt: 'desc' }],
+    })
+
     const tags = question.knowledgeTags.split(',').map((item) => item.trim()).filter(Boolean)
-    const currentIndex = allQuestions.findIndex((item) => item.id === question.id)
-    const nextQuestionId = allQuestions[currentIndex + 1]?.id ?? allQuestions[0]?.id ?? null
+    const currentIndex = moduleQuestions.findIndex((item) => item.id === question.id)
+    const nextQuestionId = moduleQuestions[currentIndex + 1]?.id ?? null
 
     const [caseMaterial, confusingPoint, memoryTip, video, favorite, mistake] = await Promise.all([
       this.prisma.caseMaterial.findFirst({
@@ -421,7 +422,7 @@ export class NursingService {
 
     return {
       ...this.serializeQuestion(question),
-      progress: this.getQuestionProgress(currentIndex, allQuestions.length),
+      progress: this.getQuestionProgress(currentIndex, moduleQuestions.length),
       nextQuestionId,
       isFavorite: Boolean(favorite),
       inMistakeBook: Boolean(mistake),
@@ -509,7 +510,14 @@ export class NursingService {
     })()
     const progressDone = new Set(records.map((record) => record.questionId)).size
     const progressTotal = questions.length
-    const practiceDaySet = new Set(records.map((record) => record.createdAt.toISOString().slice(0, 10)))
+    const sevenDaysAgo = new Date()
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
+    sevenDaysAgo.setHours(0, 0, 0, 0)
+    const practiceDaySet = new Set(
+      records
+        .filter((record) => record.createdAt >= sevenDaysAgo)
+        .map((record) => record.createdAt.toISOString().slice(0, 10)),
+    )
 
     return {
       subjectCode: 'nursing',
@@ -1415,12 +1423,33 @@ export class NursingService {
     if (dto.filter?.moduleCode) {
       where.moduleCode = dto.filter.moduleCode
     }
-    const result = await this.prisma.question.updateMany({
-      where: where as any,
-      data: { status: ContentStatus.published },
-    })
-    await this.recordAdminAudit('question.batch_publish', '-', { count: result.count, filter: dto.filter })
-    return { published: result.count }
+    const candidates = await this.prisma.question.findMany({ where: where as any })
+    if (candidates.length === 0) return { published: 0, skipped: 0, errors: [] }
+
+    const publishIds: string[] = []
+    const errors: Array<{ id: string; title: string; reason: string }> = []
+
+    for (const q of candidates) {
+      try {
+        const options = this.parseOptions(q.optionsJson)
+        this.validatePublishedQuestion(
+          { title: q.title, stem: q.stem, moduleCode: q.moduleCode, moduleName: q.moduleName, chapter: q.chapter, answer: q.answer, analysis: q.analysis, knowledgeTags: q.knowledgeTags, type: q.type },
+          options,
+        )
+        publishIds.push(q.id)
+      } catch (err) {
+        errors.push({ id: q.id, title: q.title, reason: err instanceof Error ? err.message : '校验失败' })
+      }
+    }
+
+    if (publishIds.length > 0) {
+      await this.prisma.question.updateMany({
+        where: { id: { in: publishIds } },
+        data: { status: ContentStatus.published },
+      })
+    }
+    await this.recordAdminAudit('question.batch_publish', '-', { count: publishIds.length, skipped: errors.length, filter: dto.filter })
+    return { published: publishIds.length, skipped: errors.length, errors: errors.slice(0, 20) }
   }
 
   async previewQuestionImport(questionDoc: Buffer, questionDocName: string, answerDoc?: Buffer) {

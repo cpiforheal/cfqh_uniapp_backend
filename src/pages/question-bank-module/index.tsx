@@ -2,13 +2,13 @@ import { Text, View } from '@tarojs/components'
 import Taro, { useDidShow, usePullDownRefresh } from '@tarojs/taro'
 import { useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { getLicenseStatus, getModuleQuestions, getMyFavorites, getMyMistakes } from '@/services/nursing'
+import { getLicenseStatus, getModuleQuestions, getMyFavorites, getMyMistakes, resetChapterRecords } from '@/services/nursing'
 import { useAuthStore } from '@/stores/auth'
 import type { PracticeQuestionSummary } from '@/types/study'
 import { cx } from '@/utils/classNames'
 import styles from './index.module.scss'
 
-type FilterType = 'all' | 'wrong' | 'undone' | 'favorite'
+type FilterType = 'all' | 'wrong' | 'undone' | 'favorite' | 'single' | 'multiple'
 
 export default function QuestionBankModulePage() {
   const router = Taro.useRouter()
@@ -23,7 +23,37 @@ export default function QuestionBankModulePage() {
   const [questions, setQuestions] = useState<PracticeQuestionSummary[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [expandedChapter, setExpandedChapter] = useState<string>('')
-  const [filter, setFilter] = useState<FilterType>('all')
+  const [filter, setFilter] = useState<FilterType>(() => {
+    try {
+      const saved = Taro.getStorageSync<string>(`cfqh_filter_${moduleCode}`)
+      if (saved && ['all', 'wrong', 'undone', 'favorite', 'single', 'multiple'].includes(saved)) return saved as FilterType
+    } catch {}
+    return 'all'
+  })
+
+  function updateFilter(f: FilterType) {
+    setFilter(f)
+    try { Taro.setStorageSync(`cfqh_filter_${moduleCode}`, f) } catch {}
+  }
+
+  async function handleResetChapter(chapter: string) {
+    const { confirm } = await Taro.showModal({
+      title: '清除章节记录',
+      content: `确定清除「${chapter}」的所有做题记录吗？清除后可重新做一遍，不影响其他章节。`,
+      confirmText: '确定清除',
+      confirmColor: '#f87171',
+    })
+    if (!confirm) return
+    Taro.showLoading({ title: '清除中...' })
+    const result = await resetChapterRecords(moduleCode, chapter)
+    Taro.hideLoading()
+    if (result) {
+      Taro.showToast({ title: `已清除 ${result.deleted} 条记录`, icon: 'success' })
+      await loadQuestions()
+    } else {
+      Taro.showToast({ title: '清除失败，请重试', icon: 'none' })
+    }
+  }
 
   const authorized = Boolean(licenseStatus?.authorized)
 
@@ -106,6 +136,8 @@ export default function QuestionBankModulePage() {
   const wrongCount = questions.filter((q) => q.wrongCount && q.wrongCount > 0).length
   const favoriteCount = questions.filter((q) => q.isFavorite).length
   const undoneCount = questions.filter((q) => !q.completed && !(q.wrongCount && q.wrongCount > 0)).length
+  const singleCount = questions.filter((q) => q.type === 'single_choice' || q.type === 'judgment').length
+  const multipleCount = questions.filter((q) => q.type === 'multiple_choice').length
   const progressPercent = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0
   const correctRate = doneCount > 0 ? Math.round(((doneCount - wrongCount) / doneCount) * 100) : 0
 
@@ -114,6 +146,8 @@ export default function QuestionBankModulePage() {
     wrong: wrongCount,
     favorite: favoriteCount,
     undone: undoneCount,
+    single: singleCount,
+    multiple: multipleCount,
   }
 
   function toggleChapter(chapter: string) {
@@ -124,6 +158,8 @@ export default function QuestionBankModulePage() {
     if (filter === 'wrong') return items.filter((q) => q.wrongCount && q.wrongCount > 0)
     if (filter === 'favorite') return items.filter((q) => q.isFavorite)
     if (filter === 'undone') return items.filter((q) => !q.completed && !(q.wrongCount && q.wrongCount > 0))
+    if (filter === 'single') return items.filter((q) => q.type === 'single_choice' || q.type === 'judgment')
+    if (filter === 'multiple') return items.filter((q) => q.type === 'multiple_choice')
     return items
   }
 
@@ -136,7 +172,7 @@ export default function QuestionBankModulePage() {
   }
 
   function goQuestion(id: string) {
-    Taro.navigateTo({ url: `/pages/question-detail/index?id=${id}` })
+    Taro.navigateTo({ url: `/pages/question-detail/index?id=${id}&moduleCode=${encodeURIComponent(moduleCode)}` })
   }
 
   function goSequentialPractice(chapterQuestions: PracticeQuestionSummary[]) {
@@ -177,8 +213,8 @@ export default function QuestionBankModulePage() {
       ) : (
         <>
           <View className={styles.filterRow}>
-            {([['all', '全部'], ['wrong', '错题'], ['favorite', '收藏'], ['undone', '未做']] as const).map(([key, label]) => (
-              <View key={key} className={cx(styles.filterTag, filter === key && styles.filterTagActive)} onTap={() => setFilter(key)}>
+            {([['all', '全部'], ['single', '单选'], ['multiple', '多选'], ['wrong', '错题'], ['favorite', '收藏'], ['undone', '未做']] as const).map(([key, label]) => (
+              <View key={key} className={cx(styles.filterTag, filter === key && styles.filterTagActive)} onTap={() => updateFilter(key)}>
                 <Text className={cx(styles.filterText, filter === key && styles.filterTextActive)}>
                   {label}{filterCounts[key] > 0 ? `(${filterCounts[key]})` : ''}
                 </Text>
@@ -210,6 +246,11 @@ export default function QuestionBankModulePage() {
                       {!allDone && (
                         <View className={styles.chapterBtn} onTap={(e) => { e.stopPropagation(); goSequentialPractice(group.questions) }}>
                           <Text className={styles.chapterBtnText}>练习</Text>
+                        </View>
+                      )}
+                      {allDone && (
+                        <View className={styles.chapterBtn} onTap={(e) => { e.stopPropagation(); handleResetChapter(group.chapter) }}>
+                          <Text className={styles.chapterBtnText}>重做</Text>
                         </View>
                       )}
                     </View>

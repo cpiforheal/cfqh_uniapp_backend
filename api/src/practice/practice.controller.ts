@@ -15,6 +15,15 @@ export class PracticeController {
     return this.practiceService.createRecord(dto, request.currentOpenId!)
   }
 
+  @Delete('practice-records/chapter')
+  resetChapterRecords(
+    @Query('moduleCode') moduleCode: string,
+    @Query('chapter') chapter: string,
+    @Req() request: Request & { currentOpenId?: string },
+  ) {
+    return this.practiceService.resetChapterRecords(request.currentOpenId!, moduleCode, chapter)
+  }
+
   @Get('mistakes')
   mistakes(@Req() request: Request & { currentOpenId?: string }) {
     return this.practiceService.listMistakes(request.currentOpenId!)

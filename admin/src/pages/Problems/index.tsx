@@ -280,11 +280,20 @@ export default function ProblemsPage() {
     }
 
     try {
-      const result = await adminFetch<{ published: number }>('/admin/questions/batch-publish', {
+      const result = await adminFetch<{ published: number; skipped?: number; errors?: Array<{ id: string; title: string; reason: string }> }>('/admin/questions/batch-publish', {
         method: 'POST',
         body: JSON.stringify({ ids: draftRows.map((r) => r.id) }),
       })
-      message.success(`已发布 ${result?.published ?? draftRows.length} 道草稿题`)
+      if (result?.skipped && result.skipped > 0) {
+        const errorDetails = (result.errors || []).map((e) => `「${e.title}」: ${e.reason}`).join('\n')
+        Modal.warning({
+          title: `发布 ${result.published} 道，跳过 ${result.skipped} 道`,
+          content: errorDetails || '部分题目因缺少必填字段（答案/解析/选项/知识点）未通过发布校验',
+          width: 520,
+        })
+      } else {
+        message.success(`已发布 ${result?.published ?? draftRows.length} 道草稿题`)
+      }
       setSelectedRows([])
       reload()
     } catch (error) {
@@ -303,11 +312,20 @@ export default function ProblemsPage() {
       okText: '确认发布',
       onOk: async () => {
         try {
-          const result = await adminFetch<{ published: number }>('/admin/questions/batch-publish', {
+          const result = await adminFetch<{ published: number; skipped?: number; errors?: Array<{ id: string; title: string; reason: string }> }>('/admin/questions/batch-publish', {
             method: 'POST',
             body: JSON.stringify({ filter: filterPayload }),
           })
-          message.success(`已发布 ${result?.published ?? 0} 道草稿题`)
+          if (result?.skipped && result.skipped > 0) {
+            const errorDetails = (result.errors || []).map((e) => `「${e.title}」: ${e.reason}`).join('\n')
+            Modal.warning({
+              title: `发布 ${result.published} 道，跳过 ${result.skipped} 道`,
+              content: errorDetails || '部分题目因缺少必填字段未通过发布校验',
+              width: 520,
+            })
+          } else {
+            message.success(`已发布 ${result?.published ?? 0} 道草稿题`)
+          }
           reload()
         } catch (error) {
           console.warn('batch publish all failed', error)

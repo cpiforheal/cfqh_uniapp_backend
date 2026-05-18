@@ -36,6 +36,7 @@ export interface PracticeQuestionSummary {
   isFavorite?: boolean
   wrongCount?: number
   chapter?: string
+  moduleCode?: string
   orderIndex?: number
 }
 
