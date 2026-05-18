@@ -248,7 +248,7 @@ export default function QuestionBankModulePage() {
                           <Text className={styles.chapterBtnText}>练习</Text>
                         </View>
                       )}
-                      {allDone && (
+                      {stats.done > 0 && (
                         <View className={styles.chapterBtn} onTap={(e) => { e.stopPropagation(); handleResetChapter(group.chapter) }}>
                           <Text className={styles.chapterBtnText}>重做</Text>
                         </View>

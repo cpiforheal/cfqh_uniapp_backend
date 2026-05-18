@@ -150,10 +150,27 @@ export class ExamService {
   }
 
   async openExam(examId: string) {
-    const exam = await this.prisma.exam.findUnique({ where: { id: examId }, include: { _count: { select: { questions: true } } } })
+    const exam = await this.prisma.exam.findUnique({ where: { id: examId }, include: { questions: true } })
     if (!exam) throw new NotFoundException('考试不存在')
     if (exam.status !== ExamStatus.draft) throw new BadRequestException('只有草稿状态的考试可以开放')
-    if (exam._count.questions === 0) throw new BadRequestException('考试没有题目，无法开放')
+    if (exam.questions.length === 0) throw new BadRequestException('考试没有题目，无法开放')
+
+    const issues: string[] = []
+    for (const q of exam.questions) {
+      if (!q.answer || !q.answer.trim()) {
+        issues.push(`第${q.seq}题缺少答案`)
+      }
+      if (q.isObjective) {
+        const options = q.optionsJson ? JSON.parse(q.optionsJson) : []
+        if (!Array.isArray(options) || options.length < 2) {
+          issues.push(`第${q.seq}题选项不足`)
+        }
+      }
+    }
+    if (issues.length > 0) {
+      throw new BadRequestException(`题目校验未通过：${issues.slice(0, 5).join('；')}${issues.length > 5 ? `等${issues.length}项` : ''}`)
+    }
+
     return this.prisma.exam.update({ where: { id: examId }, data: { status: ExamStatus.open } })
   }
 
@@ -550,6 +567,24 @@ export class ExamService {
   // ─── Private ────────────────────────────────────────────────────────────────
 
   private async autoSubmit(sessionId: string) {
+    const session = await this.prisma.examSession.findUnique({ where: { id: sessionId } })
+    if (!session) return { ok: false }
+
+    const allQuestions = await this.prisma.examQuestion.findMany({ where: { examId: session.examId } })
+    const existingAnswers = await this.prisma.examAnswer.findMany({
+      where: { sessionId },
+      include: { question: true },
+    })
+    const answeredIds = new Set(existingAnswers.map((a) => a.questionId))
+
+    for (const q of allQuestions) {
+      if (!answeredIds.has(q.id)) {
+        await this.prisma.examAnswer.create({
+          data: { sessionId, questionId: q.id, answer: '', isCorrect: false, score: 0 },
+        })
+      }
+    }
+
     const answers = await this.prisma.examAnswer.findMany({
       where: { sessionId },
       include: { question: true },
@@ -558,7 +593,7 @@ export class ExamService {
     let objectiveScore = 0
     for (const a of answers) {
       if (a.question.isObjective) {
-        const isCorrect = this.normalizeAnswer(a.answer || '') === this.normalizeAnswer(a.question.answer)
+        const isCorrect = a.answer ? this.normalizeAnswer(a.answer) === this.normalizeAnswer(a.question.answer) : false
         const score = isCorrect ? a.question.score : 0
         objectiveScore += score
         await this.prisma.examAnswer.update({

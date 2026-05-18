@@ -32,13 +32,14 @@ export default function QuestionDetailPage() {
   const [favorited, setFavorited] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [activeReviewTab, setActiveReviewTab] = useState<ReviewTabKey>('analysis')
-  const [authorized, setServerAuthorized] = useState(false)
-  const [checkingAuthorization, setCheckingAuthorization] = useState(true)
+  const hasLocalAuth = (() => { try { const s = Taro.getStorageSync<string>('cfqh_auth_state'); return s ? JSON.parse(s).status === 'authorized' : false } catch { return false } })()
+  const [authorized, setServerAuthorized] = useState(hasLocalAuth)
+  const [checkingAuthorization, setCheckingAuthorization] = useState(!hasLocalAuth)
   const [data, setData] = useState<QuestionDetail | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isError, setIsError] = useState(false)
   const [loadErrorText, setLoadErrorText] = useState('请确认通行码仍有效，或稍后下拉重试。')
-  const authorizedRef = useRef(false)
+  const authorizedRef = useRef(hasLocalAuth)
 
   // 【功能1】背题模式 / 答题模式切换
   const [practiceMode, setPracticeMode] = useState<PracticeMode>('answer')
@@ -120,12 +121,12 @@ export default function QuestionDetailPage() {
       setData(await getQuestionDetail(questionId))
     } catch (error) {
       console.warn('question detail load failed', error)
-      setIsError(true)
-      setData(null)
+      authorizedRef.current = false
+      await checkAuthAndLoad()
     } finally {
       setIsLoading(false)
     }
-  }, [questionId])
+  }, [questionId, checkAuthAndLoad])
 
   const loadQuestionDetail = useCallback(async () => {
     if (authorizedRef.current) {
@@ -299,7 +300,7 @@ export default function QuestionDetailPage() {
       itemList: ['转发给好友', '生成海报保存'],
     }).then((res) => {
       if (res.tapIndex === 0) {
-        Taro.showShareMenu({ withShareTicket: true })
+        Taro.showToast({ title: '请点击右上角"..."转发', icon: 'none' })
       } else if (res.tapIndex === 1) {
         generateSharePoster()
       }
@@ -312,14 +313,17 @@ export default function QuestionDetailPage() {
     try {
       const query = Taro.createSelectorQuery()
       const canvasNode = await new Promise<any>((resolve) => {
-        query.select('#sharePoster').fields({ node: true, size: true }).exec((res) => resolve(res[0]?.node))
+        query.select('.sharePosterCanvas').fields({ node: true, size: true }).exec((res) => {
+          resolve(res?.[0]?.node || null)
+        })
       })
       if (!canvasNode) {
         Taro.hideLoading()
-        Taro.showToast({ title: '生成失败', icon: 'none' })
+        Taro.showToast({ title: '画布初始化失败', icon: 'none' })
         return
       }
-      const dpr = Taro.getSystemInfoSync().pixelRatio || 2
+      const sysInfo = Taro.getSystemInfoSync()
+      const dpr = sysInfo.pixelRatio || 2
       const width = 600
       const height = 800
       canvasNode.width = width * dpr
@@ -327,26 +331,18 @@ export default function QuestionDetailPage() {
       const ctx = canvasNode.getContext('2d')
       ctx.scale(dpr, dpr)
 
-      // 背景
       ctx.fillStyle = '#f6fcfa'
       ctx.fillRect(0, 0, width, height)
 
-      // 卡片背景
       ctx.fillStyle = '#ffffff'
-      ctx.beginPath()
-      ctx.roundRect(30, 30, width - 60, height - 120, 16)
-      ctx.fill()
+      ctx.fillRect(30, 30, width - 60, height - 120)
 
-      // 题型标签
       ctx.fillStyle = '#5cd6b4'
-      ctx.beginPath()
-      ctx.roundRect(50, 50, 80, 32, 8)
-      ctx.fill()
+      ctx.fillRect(50, 50, 80, 32)
       ctx.fillStyle = '#ffffff'
       ctx.font = 'bold 14px sans-serif'
       ctx.fillText(questionTypeText(data.type), 58, 72)
 
-      // 题目标题
       ctx.fillStyle = '#0f2027'
       ctx.font = 'bold 18px sans-serif'
       const titleLines = wrapText(ctx, data.title, width - 120)
@@ -356,7 +352,6 @@ export default function QuestionDetailPage() {
         y += 28
       }
 
-      // 选项
       ctx.font = '15px sans-serif'
       ctx.fillStyle = '#4b5f6b'
       y += 10
@@ -365,7 +360,6 @@ export default function QuestionDetailPage() {
         y += 30
       }
 
-      // 底部提示
       ctx.fillStyle = '#8fb0b6'
       ctx.font = '13px sans-serif'
       ctx.fillText('长按识别小程序码 · 一起来刷题', 50, height - 60)
@@ -394,7 +388,7 @@ export default function QuestionDetailPage() {
       if (err?.errMsg?.includes('auth deny')) {
         Taro.showToast({ title: '请允许保存图片权限', icon: 'none' })
       } else {
-        Taro.showToast({ title: '生成失败', icon: 'none' })
+        Taro.showToast({ title: '保存失败', icon: 'none' })
       }
     }
   }
@@ -728,7 +722,7 @@ export default function QuestionDetailPage() {
       </View>
 
       {/* 隐藏 Canvas 用于海报生成 */}
-      <Canvas id="sharePoster" canvasId="sharePoster" type="2d" style={{ position: 'fixed', left: '-9999px', width: '600px', height: '800px' }} />
+      <Canvas className="sharePosterCanvas" canvasId="sharePoster" type="2d" style={{ position: 'fixed', left: 0, top: 0, width: '600px', height: '800px', opacity: 0, pointerEvents: 'none', zIndex: -1 }} />
     </View>
   )
 }
