@@ -4,3 +4,4 @@ src/.umi/
 src/.umi-production/
 .DS_Store
 .env.local
+.env.deploy

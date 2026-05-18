@@ -513,3 +513,253 @@
 .toolItem:active {
   opacity: 0.7;
 }
+
+// ===== 答题反馈动画 =====
+
+// 答对：卡片绿色脉冲光晕
+.cardCorrectPulse {
+  animation: correctPulse 0.6s ease-out;
+}
+
+@keyframes correctPulse {
+  0% { box-shadow: 0 0 0 0 rgba(92, 214, 180, 0.5); }
+  50% { box-shadow: 0 0 0 16px rgba(92, 214, 180, 0.15); transform: scale(1.01); }
+  100% { box-shadow: $shadow-card; transform: scale(1); }
+}
+
+// 答错：卡片抖动
+.cardWrongShake {
+  animation: wrongShake 0.4s ease-out;
+}
+
+@keyframes wrongShake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-8px); }
+  30% { transform: translateX(8px); }
+  45% { transform: translateX(-6px); }
+  60% { transform: translateX(6px); }
+  75% { transform: translateX(-3px); }
+  90% { transform: translateX(3px); }
+}
+
+// 答对：烟花粒子覆盖层
+.fireworkOverlay {
+  position: fixed;
+  top: 40%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  z-index: 999;
+  pointer-events: none;
+}
+
+.fireworkParticle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: $color-primary;
+  animation: fireworkBurst 0.8s ease-out forwards;
+  animation-delay: var(--delay, 0s);
+  opacity: 0;
+}
+
+.fireworkParticle:nth-child(odd) {
+  background: $color-warm;
+  width: 8px;
+  height: 8px;
+}
+
+.fireworkParticle:nth-child(3n) {
+  background: $color-accent;
+  width: 6px;
+  height: 6px;
+}
+
+@keyframes fireworkBurst {
+  0% {
+    opacity: 1;
+    transform: rotate(var(--angle, 0deg)) translateY(0) scale(1);
+  }
+  60% {
+    opacity: 1;
+    transform: rotate(var(--angle, 0deg)) translateY(-120px) scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--angle, 0deg)) translateY(-160px) scale(0.3);
+  }
+}
+
+// Emoji 弹出动画
+.emojiPop {
+  position: absolute;
+  font-size: 48px;
+  opacity: 0;
+  animation: emojiBounce 1s ease-out forwards;
+  animation-delay: var(--em-delay, 0s);
+  pointer-events: none;
+}
+
+@keyframes emojiBounce {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.2) rotate(0deg);
+  }
+  30% {
+    opacity: 1;
+    transform: translate(var(--em-x, 0), var(--em-y, -60px)) scale(1.3) rotate(-10deg);
+  }
+  60% {
+    opacity: 1;
+    transform: translate(var(--em-x, 0), calc(var(--em-y, -60px) - 10px)) scale(1) rotate(5deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--em-x, 0), calc(var(--em-y, -60px) - 30px)) scale(0.6) rotate(0deg);
+  }
+}
+
+// ===== Combo 评价系统 =====
+.comboOverlay {
+  position: fixed;
+  top: 35%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 998;
+  pointer-events: none;
+  text-align: center;
+  animation: comboEntry 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.comboText {
+  display: block;
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.comboCount {
+  display: block;
+  margin-top: 8px;
+  font-size: 24px;
+  font-weight: 700;
+  opacity: 0.8;
+}
+
+// Good: 绿色，普通弹出
+.combo_good .comboText {
+  font-size: 52px;
+  color: $color-primary;
+}
+.combo_good .comboCount { color: $color-primary-dark; }
+
+// Excellent: 金色，放大
+.combo_excellent .comboText {
+  font-size: 60px;
+  color: $color-warm;
+  animation: comboGlow 0.8s ease-out;
+}
+.combo_excellent .comboCount { color: #d97706; }
+
+// Amazing: 紫色渐变，抖动
+.combo_amazing .comboText {
+  font-size: 68px;
+  color: $color-accent;
+  animation: comboShine 0.6s ease-out;
+}
+.combo_amazing .comboCount { color: #7c3aed; }
+.combo_amazing {
+  animation: comboEntry 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards, comboVibrate 0.3s 0.3s ease-out;
+}
+
+// Unbelievable: 彩虹流光
+.combo_unbelievable .comboText {
+  font-size: 76px;
+  background: linear-gradient(90deg, #f87171, #fbbf24, #5cd6b4, #a78bfa, #f87171);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: rainbowFlow 1s linear infinite;
+}
+.combo_unbelievable .comboCount {
+  color: #a78bfa;
+}
+.combo_unbelievable {
+  animation: comboEntry 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards, comboVibrate 0.15s 0.2s ease-out 3;
+}
+
+@keyframes comboEntry {
+  0% { opacity: 0; transform: translateX(-50%) scale(0.3) translateY(20px); }
+  60% { opacity: 1; transform: translateX(-50%) scale(1.15) translateY(-5px); }
+  100% { opacity: 1; transform: translateX(-50%) scale(1) translateY(0); }
+}
+
+@keyframes comboGlow {
+  0%, 100% { text-shadow: 0 0 0 transparent; }
+  50% { text-shadow: 0 0 24px rgba(251, 191, 36, 0.5), 0 0 48px rgba(251, 191, 36, 0.2); }
+}
+
+@keyframes comboShine {
+  0% { text-shadow: 0 0 0 transparent; }
+  40% { text-shadow: 0 0 20px rgba(167, 139, 250, 0.6), 0 0 40px rgba(167, 139, 250, 0.3); }
+  100% { text-shadow: 0 0 8px rgba(167, 139, 250, 0.2); }
+}
+
+@keyframes comboVibrate {
+  0%, 100% { transform: translateX(-50%) rotate(0deg); }
+  25% { transform: translateX(-50%) rotate(-2deg); }
+  75% { transform: translateX(-50%) rotate(2deg); }
+}
+
+@keyframes rainbowFlow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+// ===== 选项水波纹 =====
+.option {
+  position: relative;
+  overflow: hidden;
+}
+
+.optionActive::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 200%;
+  height: 200%;
+  border-radius: 50%;
+  background: rgba(92, 214, 180, 0.15);
+  transform: translate(-50%, -50%) scale(0);
+  animation: ripple 0.5s ease-out forwards;
+}
+
+@keyframes ripple {
+  0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+}
+
+// ===== 进度条里程碑动画 =====
+.progressMilestone .progressFill {
+  background: linear-gradient(90deg, #5cd6b4, #67e8f9, #a78bfa, #fbbf24, #f87171, #5cd6b4);
+  background-size: 300% 100%;
+  animation: milestoneRainbow 1.5s linear infinite;
+}
+
+@keyframes milestoneRainbow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
+}
+
+.progressBounce .progressLabel {
+  animation: labelBounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes labelBounce {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.3); }
+  70% { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}

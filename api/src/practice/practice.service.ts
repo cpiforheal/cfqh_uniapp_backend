@@ -41,11 +41,9 @@ export class PracticeService {
     } else {
       const existing = await this.prisma.mistake.findUnique({ where: { userId_questionId: { userId, questionId: dto.questionId } } })
       if (existing && !existing.mastered) {
-        const baseInterval = dto.reviewFrequency === 'exam' ? 1 : dto.reviewFrequency === 'alternate' ? 2 : 3
-        const interval = Math.min((existing.wrongCount || 1) * baseInterval, 14)
         await this.prisma.mistake.update({
           where: { id: existing.id },
-          data: { nextReviewAt: new Date(Date.now() + interval * 24 * 60 * 60 * 1000) },
+          data: { mastered: true, nextReviewAt: null },
         })
       }
     }

@@ -75,6 +75,17 @@
   font-weight: $weight-normal;
 }
 
+.goalComplete {
+  color: $color-warm;
+  font-weight: $weight-bold;
+  animation: goalPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes goalPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.85; }
+}
+
 .noticeBar {
   margin-top: $space-sm;
   padding: 12px 18px;

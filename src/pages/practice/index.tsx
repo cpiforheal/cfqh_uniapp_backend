@@ -240,7 +240,7 @@ export default function PracticePage() {
         ) : (
           <Text className={styles.title}>今日练习</Text>
         )}
-        <Text className={styles.statsInline}>🎯 {dailyDone}/{dailyGoal} 今日目标 · 🔥 本周 {data.weeklyCompletedCount || 0} 天</Text>
+        <Text className={cx(styles.statsInline, dailyDone >= dailyGoal && styles.goalComplete)}>🎯 {dailyDone}/{dailyGoal} 今日目标 · 🔥 本周 {data.weeklyCompletedCount || 0} 天</Text>
       </View>
 
       <View className={styles.capsuleRow}>

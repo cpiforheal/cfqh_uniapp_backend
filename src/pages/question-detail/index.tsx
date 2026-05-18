@@ -62,6 +62,11 @@ export default function QuestionDetailPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const startTimeRef = useRef<number>(0)
   const autoNextTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [feedbackAnim, setFeedbackAnim] = useState<'correct' | 'wrong' | ''>('')
+  const [comboCount, setComboCount] = useState<number>(() => {
+    try { return Number(Taro.getStorageSync('cfqh_combo') || 0) } catch { return 0 }
+  })
+  const [comboDisplay, setComboDisplay] = useState<{ level: string; text: string } | null>(null)
 
   // 【功能4】分享当前题目
   useShareAppMessage(() => {
@@ -209,6 +214,23 @@ export default function QuestionDetailPage() {
       return
     }
     setSubmitted(true)
+    setFeedbackAnim(isCorrect ? 'correct' : 'wrong')
+    setTimeout(() => setFeedbackAnim(''), 1500)
+
+    // combo 评价系统
+    if (isCorrect) {
+      const newCombo = comboCount + 1
+      setComboCount(newCombo)
+      try { Taro.setStorageSync('cfqh_combo', String(newCombo)) } catch {}
+      const level = newCombo >= 8 ? 'unbelievable' : newCombo >= 5 ? 'amazing' : newCombo >= 3 ? 'excellent' : 'good'
+      const text = newCombo >= 8 ? 'Unbelievable!' : newCombo >= 5 ? 'Amazing!' : newCombo >= 3 ? 'Excellent!' : 'Good!'
+      setComboDisplay({ level, text })
+      setTimeout(() => setComboDisplay(null), 2000)
+    } else {
+      setComboCount(0)
+      try { Taro.setStorageSync('cfqh_combo', '0') } catch {}
+      setComboDisplay(null)
+    }
 
     const dailyGoal = settings.dailyGoal || 20
     const todayKey = `cfqh_daily_done_${new Date().toISOString().slice(0, 10)}`
@@ -494,14 +516,14 @@ export default function QuestionDetailPage() {
         </View>
       </View>
 
-      <View className={styles.progressHeader}>
+      <View className={cx(styles.progressHeader, [10, 20, 50, 100].includes(data.progress.current) && styles.progressMilestone, [10, 20, 50, 100].includes(data.progress.current) && styles.progressBounce)}>
         <Text className={styles.progressLabel}>第 {data.progress.current} / {data.progress.total} 题</Text>
         <View className={styles.progressTrack}>
           <View className={styles.progressFill} style={{ width: `${progressPercent}%` }} />
         </View>
       </View>
 
-      <View className={styles.questionCard}>
+      <View className={cx(styles.questionCard, feedbackAnim === 'correct' && styles.cardCorrectPulse, feedbackAnim === 'wrong' && styles.cardWrongShake)}>
         <View className={styles.tagRow}>
           <Text className={styles.typeTag}>{questionTypeText(data.type)}</Text>
           <Text className={styles.levelText}>难度：{data.difficultyText}</Text>
@@ -618,6 +640,28 @@ export default function QuestionDetailPage() {
               <Text className={styles.reviewBody}>{data.memoryTip.tip}</Text>
             </View>
           )}
+        </View>
+      )}
+
+      {/* 答对动画：粒子 + Emoji 弹出 */}
+      {feedbackAnim === 'correct' && (
+        <View className={styles.fireworkOverlay}>
+          {Array.from({ length: 12 }, (_, i) => (
+            <View key={i} className={styles.fireworkParticle} style={{ '--angle': `${i * 30}deg`, '--delay': `${i * 0.03}s` } as any} />
+          ))}
+          <Text className={styles.emojiPop} style={{ '--em-delay': '0s', '--em-x': '-40px', '--em-y': '-60px' } as any}>🎉</Text>
+          <Text className={styles.emojiPop} style={{ '--em-delay': '0.1s', '--em-x': '35px', '--em-y': '-80px' } as any}>🎊</Text>
+          <Text className={styles.emojiPop} style={{ '--em-delay': '0.15s', '--em-x': '0px', '--em-y': '-100px' } as any}>✨</Text>
+          <Text className={styles.emojiPop} style={{ '--em-delay': '0.2s', '--em-x': '-50px', '--em-y': '-30px' } as any}>👏</Text>
+          <Text className={styles.emojiPop} style={{ '--em-delay': '0.08s', '--em-x': '50px', '--em-y': '-45px' } as any}>🌟</Text>
+        </View>
+      )}
+
+      {/* Combo 评价弹出 */}
+      {comboDisplay && (
+        <View className={cx(styles.comboOverlay, styles[`combo_${comboDisplay.level}`])}>
+          <Text className={styles.comboText}>{comboDisplay.text}</Text>
+          {comboCount >= 3 && <Text className={styles.comboCount}>x{comboCount} combo</Text>}
         </View>
       )}
 

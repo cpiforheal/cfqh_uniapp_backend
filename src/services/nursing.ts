@@ -308,10 +308,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 }
 
+let sessionLoginDone = false
+
 async function loginMiniappUser(profile?: { nickname?: string; avatarUrl?: string }) {
   const openId = getOpenId()
-  if (MINIAPP_ENV.skipWechatLogin && openId && !profile) {
-    Taro.setStorageSync(OPEN_ID_STORAGE_KEY, openId)
+  if (openId && !profile && sessionLoginDone) {
     return openId
   }
 
@@ -327,7 +328,10 @@ async function loginMiniappUser(profile?: { nickname?: string; avatarUrl?: strin
     },
   })
   const resolvedOpenId = result?.openId || openId
-  if (resolvedOpenId) Taro.setStorageSync(OPEN_ID_STORAGE_KEY, resolvedOpenId)
+  if (resolvedOpenId) {
+    Taro.setStorageSync(OPEN_ID_STORAGE_KEY, resolvedOpenId)
+    sessionLoginDone = true
+  }
   return resolvedOpenId
 }
 

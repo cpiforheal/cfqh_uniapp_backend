@@ -325,7 +325,7 @@ export class NursingService {
         select: { questionId: true },
       }),
       this.prisma.mistake.findMany({
-        where: { userId: user.id, questionId: { in: questionIds } },
+        where: { userId: user.id, questionId: { in: questionIds }, mastered: false },
         select: { questionId: true, wrongCount: true },
       }),
     ])
@@ -1550,25 +1550,26 @@ export class NursingService {
   }
 
   async getRanking(type: string, currentOpenId?: string) {
-    const users = await this.prisma.user.findMany({ select: { id: true, openId: true, nickname: true } })
+    const users = await this.prisma.user.findMany({ select: { id: true, openId: true, nickname: true, avatarUrl: true } })
     const userIdToOpenId = new Map(users.map((u) => [u.id, u.openId]))
     const openIdToNickname = new Map(users.map((u) => [u.openId, u.nickname || '医护同学']))
+    const openIdToAvatar = new Map(users.map((u) => [u.openId, u.avatarUrl || '']))
 
     const records = await this.prisma.practiceRecord.groupBy({ by: ['userId'], _count: { id: true } })
 
-    let list: Array<{ openId: string; nickname: string; value: number }>
+    let list: Array<{ openId: string; nickname: string; avatarUrl: string; value: number }>
 
     if (type === 'rate') {
       const correctRecords = await this.prisma.practiceRecord.groupBy({ by: ['userId'], _count: { id: true }, where: { isCorrect: true } })
       const correctMap = new Map(correctRecords.map((r) => [r.userId, r._count.id]))
       list = records.map((r) => {
         const oid = userIdToOpenId.get(r.userId) || ''
-        return { openId: oid, nickname: openIdToNickname.get(oid) || '医护同学', value: r._count.id > 0 ? Math.round((correctMap.get(r.userId) || 0) / r._count.id * 100) : 0 }
+        return { openId: oid, nickname: openIdToNickname.get(oid) || '医护同学', avatarUrl: openIdToAvatar.get(oid) || '', value: r._count.id > 0 ? Math.round((correctMap.get(r.userId) || 0) / r._count.id * 100) : 0 }
       })
     } else if (type === 'count') {
       list = records.map((r) => {
         const oid = userIdToOpenId.get(r.userId) || ''
-        return { openId: oid, nickname: openIdToNickname.get(oid) || '医护同学', value: r._count.id }
+        return { openId: oid, nickname: openIdToNickname.get(oid) || '医护同学', avatarUrl: openIdToAvatar.get(oid) || '', value: r._count.id }
       })
     } else {
       const allRecords = await this.prisma.practiceRecord.findMany({ select: { userId: true, createdAt: true } })
@@ -1579,7 +1580,7 @@ export class NursingService {
       })
       list = Array.from(dayMap.entries()).map(([userId, days]) => {
         const oid = userIdToOpenId.get(userId) || ''
-        return { openId: oid, nickname: openIdToNickname.get(oid) || '医护同学', value: days.size }
+        return { openId: oid, nickname: openIdToNickname.get(oid) || '医护同学', avatarUrl: openIdToAvatar.get(oid) || '', value: days.size }
       })
     }
 

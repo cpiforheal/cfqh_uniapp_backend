@@ -244,6 +244,8 @@ export default defineConfig({
     },
   ],
   npmClient: 'pnpm',
+  hash: true,
+  publicPath: isProduction ? 'https://www.cfzzbsq.cloud/cfxzs/admin/' : '/',
   ...(isProduction
     ? {
         esbuildMinifyIIFE: true,

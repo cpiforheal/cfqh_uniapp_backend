@@ -1,4 +1,4 @@
-import { Text, View } from '@tarojs/components'
+import { Image, Text, View } from '@tarojs/components'
 import Taro, { useDidShow } from '@tarojs/taro'
 import { useCallback, useEffect, useState } from 'react'
 import { getLicenseStatus, getRanking } from '@/services/nursing'
@@ -11,6 +11,7 @@ type RankTab = 'days' | 'count' | 'rate'
 interface RankItem {
   openId: string
   nickname: string
+  avatarUrl?: string
   value: number
 }
 
@@ -43,13 +44,8 @@ export default function RankingPage() {
     }
   }, [tab, setAuthorized])
 
-  useDidShow(() => {
-    loadRanking()
-  })
-
-  useEffect(() => {
-    loadRanking()
-  }, [tab, loadRanking])
+  useDidShow(() => { loadRanking() })
+  useEffect(() => { loadRanking() }, [tab, loadRanking])
 
   const tabs: { key: RankTab; label: string }[] = [
     { key: 'days', label: '坚持天数' },
@@ -57,59 +53,89 @@ export default function RankingPage() {
     { key: 'rate', label: '正确率' },
   ]
 
-  function medalEmoji(index: number) {
-    if (index === 0) return '🥇'
-    if (index === 1) return '🥈'
-    if (index === 2) return '🥉'
-    return `${index + 1}`
-  }
-
   function formatValue(value: number) {
     if (tab === 'rate') return `${value}%`
     if (tab === 'days') return `${value} 天`
     return `${value} 题`
   }
 
+  function getAvatarText(name: string) {
+    return (name || '同').slice(0, 1)
+  }
+
+  const top3 = list.slice(0, 3)
+  const rest = list.slice(3)
+  const podiumOrder = [top3[1], top3[0], top3[2]]
+
   return (
     <View className={styles.page}>
       <View className={styles.tabRow}>
         {tabs.map((t) => (
-          <View
-            key={t.key}
-            className={cx(styles.tab, tab === t.key && styles.tabActive)}
-            onTap={() => setTab(t.key)}
-          >
+          <View key={t.key} className={cx(styles.tab, tab === t.key && styles.tabActive)} onTap={() => setTab(t.key)}>
             <Text className={cx(styles.tabText, tab === t.key && styles.tabTextActive)}>{t.label}</Text>
           </View>
         ))}
       </View>
 
       {loading ? (
-        <View className={styles.emptyCard}>
-          <Text className={styles.emptyText}>加载中...</Text>
-        </View>
+        <View className={styles.emptyCard}><Text className={styles.emptyText}>加载中...</Text></View>
       ) : list.length === 0 ? (
-        <View className={styles.emptyCard}>
-          <Text className={styles.emptyText}>暂无排行数据</Text>
-        </View>
+        <View className={styles.emptyCard}><Text className={styles.emptyText}>暂无排行数据</Text></View>
       ) : (
-        <View className={styles.listCard}>
-          {list.map((item, index) => (
-            <View className={styles.rankItem} key={item.openId}>
-              <Text className={cx(styles.rankIndex, index < 3 && styles.rankIndexTop)}>{medalEmoji(index)}</Text>
-              <View className={styles.rankInfo}>
-                <Text className={styles.rankName}>{item.nickname || '医护同学'}</Text>
-              </View>
-              <Text className={cx(styles.rankValue, index < 3 && styles.rankValueTop)}>{formatValue(item.value)}</Text>
+        <>
+          {/* 领奖台 */}
+          <View className={styles.podium}>
+            {podiumOrder.map((item, idx) => {
+              if (!item) return <View key={idx} className={styles.podiumSlot} />
+              const rank = idx === 0 ? 2 : idx === 1 ? 1 : 3
+              const heightClass = rank === 1 ? styles.podiumFirst : rank === 2 ? styles.podiumSecond : styles.podiumThird
+              const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉'
+              return (
+                <View key={item.openId} className={cx(styles.podiumSlot, heightClass)}>
+                  <View className={styles.podiumAvatar}>
+                    {item.avatarUrl ? (
+                      <Image className={styles.avatarImg} src={item.avatarUrl} mode="aspectFill" />
+                    ) : (
+                      <Text className={styles.avatarFallback}>{getAvatarText(item.nickname)}</Text>
+                    )}
+                    <Text className={styles.podiumMedal}>{medal}</Text>
+                  </View>
+                  <Text className={styles.podiumName}>{item.nickname || '医护同学'}</Text>
+                  <Text className={styles.podiumValue}>{formatValue(item.value)}</Text>
+                  <View className={cx(styles.podiumBar, heightClass)} />
+                </View>
+              )
+            })}
+          </View>
+
+          {/* 4名之后列表 */}
+          {rest.length > 0 && (
+            <View className={styles.listCard}>
+              {rest.map((item, index) => (
+                <View className={styles.rankItem} key={item.openId}>
+                  <Text className={styles.rankIndex}>{index + 4}</Text>
+                  <View className={styles.rankAvatar}>
+                    {item.avatarUrl ? (
+                      <Image className={styles.avatarImgSmall} src={item.avatarUrl} mode="aspectFill" />
+                    ) : (
+                      <Text className={styles.avatarFallbackSmall}>{getAvatarText(item.nickname)}</Text>
+                    )}
+                  </View>
+                  <View className={styles.rankInfo}>
+                    <Text className={styles.rankName}>{item.nickname || '医护同学'}</Text>
+                  </View>
+                  <Text className={styles.rankValue}>{formatValue(item.value)}</Text>
+                </View>
+              ))}
             </View>
-          ))}
-        </View>
+          )}
+        </>
       )}
 
       {myRank && (
         <View className={styles.myRankBar}>
           <Text className={styles.myRankText}>
-            🏃 你已经坚持了 {myRank.value} 天，排名第 {myRank.rank}，坚持就是胜利！
+            🏃 你排名第 {myRank.rank}，{tab === 'rate' ? `正确率 ${myRank.value}%` : tab === 'days' ? `坚持 ${myRank.value} 天` : `刷了 ${myRank.value} 题`}
           </Text>
         </View>
       )}

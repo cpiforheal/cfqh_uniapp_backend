@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "max dev",
     "build": "max build",
+    "build:prod": "max build && pnpm exec tsx scripts/gzip-dist.ts",
+    "deploy": "pnpm build:prod && pnpm exec tsx scripts/deploy-cos.ts",
     "preview": "max preview --port 8001",
     "typecheck": "tsc --noEmit"
   },
@@ -23,6 +25,7 @@
     "@types/katex": "^0.16.8",
     "@types/react": "^18.3.27",
     "@types/react-dom": "^18.3.7",
+    "tsx": "^4.22.1",
     "typescript": "^5.9.3"
   },
   "packageManager": "pnpm@10.18.3"
