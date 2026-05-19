@@ -25,8 +25,10 @@ function questionTypeText(type?: string) {
 
 export default function QuestionDetailPage() {
   const router = Taro.useRouter()
-  const questionId = String(router.params.id || '').trim()
+  const initialQuestionId = String(router.params.id || '').trim()
   const currentModuleCode = String(router.params.moduleCode || '').trim()
+  const [activeQuestionId, setActiveQuestionId] = useState(initialQuestionId)
+  const questionId = activeQuestionId || initialQuestionId
   const [selected, setSelected] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [favorited, setFavorited] = useState(false)
@@ -64,6 +66,7 @@ export default function QuestionDetailPage() {
   const startTimeRef = useRef<number>(0)
   const autoNextTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [feedbackAnim, setFeedbackAnim] = useState<'correct' | 'wrong' | ''>('')
+  const [transitionState, setTransitionState] = useState<'enter' | 'exit' | ''>('')
   const [comboCount, setComboCount] = useState<number>(() => {
     try { return Number(Taro.getStorageSync('cfqh_combo') || 0) } catch { return 0 }
   })
@@ -115,16 +118,19 @@ export default function QuestionDetailPage() {
 
   const loadQuestionOnly = useCallback(async () => {
     if (!questionId) return
-    setIsLoading(true)
     setIsError(false)
     try {
-      setData(await getQuestionDetail(questionId))
+      const newData = await getQuestionDetail(questionId)
+      setTransitionState('exit')
+      setTimeout(() => {
+        setData(newData)
+        setTransitionState('enter')
+        setTimeout(() => setTransitionState(''), 300)
+      }, 150)
     } catch (error) {
       console.warn('question detail load failed', error)
       authorizedRef.current = false
       await checkAuthAndLoad()
-    } finally {
-      setIsLoading(false)
     }
   }, [questionId, checkAuthAndLoad])
 
@@ -273,11 +279,10 @@ export default function QuestionDetailPage() {
       Taro.showToast({ title: '暂无下一题', icon: 'none' })
       return
     }
-    // 【功能2】记录历史以支持返回
     const newHistory = [...questionHistory, data.id]
     setQuestionHistory(newHistory)
     try { Taro.setStorageSync('cfqh_question_history', JSON.stringify(newHistory.slice(-50))) } catch {}
-    Taro.redirectTo({ url: `/pages/question-detail/index?id=${data.nextQuestionId}${currentModuleCode ? `&moduleCode=${currentModuleCode}` : ''}` })
+    setActiveQuestionId(data.nextQuestionId)
   }
 
   // 【功能2】返回上一题
@@ -290,7 +295,7 @@ export default function QuestionDetailPage() {
     const newHistory = questionHistory.slice(0, -1)
     setQuestionHistory(newHistory)
     try { Taro.setStorageSync('cfqh_question_history', JSON.stringify(newHistory)) } catch {}
-    Taro.redirectTo({ url: `/pages/question-detail/index?id=${prevId}${currentModuleCode ? `&moduleCode=${currentModuleCode}` : ''}` })
+    setActiveQuestionId(prevId)
   }
 
   // 【功能4】手动触发分享
@@ -433,7 +438,7 @@ export default function QuestionDetailPage() {
       try { Taro.setStorageSync('cfqh_question_history', JSON.stringify(newHistory.slice(-50))) } catch {}
     }
     setShowAnswerSheet(false)
-    Taro.redirectTo({ url: `/pages/question-detail/index?id=${targetId}${currentModuleCode ? `&moduleCode=${currentModuleCode}` : ''}` })
+    setActiveQuestionId(targetId)
   }
 
   function goActivate() {
@@ -471,7 +476,7 @@ export default function QuestionDetailPage() {
     )
   }
 
-  if (isLoading || !data) {
+  if (!data) {
     return (
       <View className={styles.page}>
         <View className={styles.lockCard}>
@@ -499,7 +504,7 @@ export default function QuestionDetailPage() {
   const currentReviewTab = reviewTabs.some((item) => item.key === activeReviewTab) ? activeReviewTab : 'analysis'
 
   return (
-    <View className={styles.page}>
+    <View className={cx(styles.page, transitionState === 'exit' && styles.pageExit, transitionState === 'enter' && styles.pageEnter)}>
       {/* 【功能1】模式切换 Tab */}
       <View className={styles.modeSwitch}>
         <View className={cx(styles.modeTab, practiceMode === 'review' && styles.modeTabActive)} onTap={() => setPracticeMode('review')}>
