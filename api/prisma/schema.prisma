@@ -23,6 +23,7 @@ enum ContentStatus {
 enum SubjectCode {
   nursing
   math
+  study_card
 }
 
 enum AdminRole {
@@ -48,6 +49,11 @@ model User {
   openId          String             @unique
   nickname        String?
   avatarUrl       String?
+  remark          String?
+  realName        String?
+  className       String?
+  phoneTail       String?
+  wechatId        String?
   loginCount      Int                @default(0)
   lastLoginAt     DateTime?
   lastClientEnv   String?
@@ -57,6 +63,7 @@ model User {
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
   authorization   UserAuthorization?
+  studyCardAuth   StudyCardAuthorization?
   practiceRecords  PracticeRecord[]
   favorites        Favorite[]
   mistakes         Mistake[]
@@ -101,6 +108,7 @@ model LicenseToken {
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
   authorization UserAuthorization[]
+  studyCardAuth StudyCardAuthorization?
   activationAttempts LicenseActivationAttempt[]
 }
 
@@ -485,4 +493,69 @@ model ExamComment {
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
   session   ExamSession @relation(fields: [sessionId], references: [id])
+}
+
+// ─── Study Card Module ────────────────────────────────────────────────────────
+
+model StudyCardModule {
+  id         String              @id @default(cuid())
+  moduleCode String              @unique
+  moduleName String
+  sort       Int                 @default(1)
+  status     ContentStatus       @default(published)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  questions  StudyCardQuestion[]
+}
+
+model StudyCardQuestion {
+  id             String                   @id @default(cuid())
+  moduleId       String
+  seq            Int
+  stem           String
+  type           QuestionType             @default(single_choice)
+  optionsJson    String                   @default("[]")
+  answer         String
+  status         ContentStatus            @default(published)
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  module         StudyCardModule          @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  knowledgeCards StudyCardKnowledgeCard[]
+
+  @@index([moduleId])
+}
+
+model StudyCardKnowledgeCard {
+  id         String            @id @default(cuid())
+  questionId String
+  seq        Int
+  title      String
+  bodyJson   String
+  createdAt  DateTime          @default(now())
+  question   StudyCardQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+}
+
+model StudyCardMastery {
+  id         String   @id @default(cuid())
+  userId     String
+  questionId String
+  mastered   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, questionId])
+  @@index([userId])
+}
+
+model StudyCardAuthorization {
+  id         String       @id @default(cuid())
+  userId     String       @unique
+  openId     String       @unique
+  tokenId    String       @unique
+  expiresAt  DateTime
+  createdAt  DateTime     @default(now())
+  user       User         @relation(fields: [userId], references: [id])
+  token      LicenseToken @relation(fields: [tokenId], references: [id])
 }

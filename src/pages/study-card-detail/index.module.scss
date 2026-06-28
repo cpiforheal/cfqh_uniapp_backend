@@ -1,0 +1,438 @@
+@use '../../styles/theme.scss' as *;
+
+.page {
+  min-height: 100vh;
+  padding: 30px 28px 238px;
+  background: #f7f8f6;
+  box-sizing: border-box;
+}
+
+.loadingText {
+  display: block;
+  margin-top: 40vh;
+  color: #7a827c;
+  font-size: 28px;
+  text-align: center;
+}
+
+.ticketHeader {
+  padding: 28px 26px;
+  border-radius: 30px;
+  background: #111827;
+  box-shadow: 0 16px 34px rgba(17, 24, 39, 0.16);
+}
+
+.ticketTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.ticketLabel {
+  display: block;
+  color: #7cf0a9;
+  font-size: 23px;
+  font-weight: $weight-bold;
+}
+
+.ticketTitle {
+  display: block;
+  margin-top: 10px;
+  color: #ffffff;
+  font-size: 34px;
+  font-weight: $weight-bold;
+  line-height: 1.32;
+}
+
+.ticketSeq {
+  flex-shrink: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  min-width: 116px;
+  height: 86px;
+  padding: 0 14px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.1);
+  box-sizing: border-box;
+}
+
+.ticketSeqValue {
+  color: #ff8a3d;
+  font-size: 46px;
+  font-weight: $weight-bold;
+}
+
+.ticketSeqLabel {
+  margin-left: 4px;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 24px;
+  font-weight: $weight-medium;
+}
+
+.progressTrack {
+  height: 10px;
+  margin-top: 24px;
+  border-radius: $radius-pill;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: $radius-pill;
+  background: linear-gradient(90deg, #7cf0a9, #ffb15f);
+}
+
+.questionCard {
+  margin-top: 24px;
+  padding: 28px 26px 32px;
+  border-radius: 30px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(30, 41, 59, 0.08);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.typeTag {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border-radius: $radius-pill;
+  color: #1b9b62;
+  background: #effff4;
+  font-size: 22px;
+  font-weight: $weight-bold;
+}
+
+.cardHint {
+  color: #7a827c;
+  font-size: 22px;
+}
+
+.stem {
+  display: block;
+  margin-top: 24px;
+  color: #111827;
+  font-size: 34px;
+  font-weight: $weight-bold;
+  line-height: 1.6;
+}
+
+.optionList {
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.option {
+  min-height: 92px;
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  border-radius: 26px;
+  border: 2px solid transparent;
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgba(30, 41, 59, 0.06);
+  box-sizing: border-box;
+  @include tap-active;
+}
+
+.optionKey {
+  width: 56px;
+  height: 56px;
+  margin-right: 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  color: #111827;
+  background: #f3f4f2;
+  font-size: 26px;
+  font-weight: $weight-bold;
+}
+
+.optionText {
+  flex: 1;
+  color: #27312b;
+  font-size: 27px;
+  line-height: 1.55;
+}
+
+.optionActive {
+  border-color: #27c37a;
+  background: #f3fff7;
+}
+
+.optionActive .optionKey {
+  color: #ffffff;
+  background: #27c37a;
+}
+
+.optionCorrect {
+  border-color: #27c37a;
+  background: #27c37a;
+}
+
+.optionWrong {
+  border-color: #ff6b2c;
+  background: #ff6b2c;
+}
+
+.optionCorrect .optionKey,
+.optionWrong .optionKey {
+  color: #111827;
+  background: #ffffff;
+}
+
+.optionCorrect .optionText,
+.optionWrong .optionText {
+  color: #ffffff;
+}
+
+.afterSubmit {
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.resultCard {
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  border-radius: 28px;
+  background: #ffffff;
+  box-shadow: 0 10px 26px rgba(30, 41, 59, 0.06);
+}
+
+.resultMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.resultStatus {
+  display: block;
+  font-size: 34px;
+  font-weight: $weight-bold;
+}
+
+.resultDesc {
+  display: block;
+  margin-top: 8px;
+  color: #68736c;
+  font-size: 24px;
+}
+
+.correctColor {
+  color: #1b9b62;
+}
+
+.wrongColor {
+  color: #ff6b2c;
+}
+
+.resultBadge {
+  min-width: 104px;
+  height: 68px;
+  padding: 0 14px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20px;
+  font-size: 24px;
+  font-weight: $weight-bold;
+}
+
+.resultBadgeCorrect {
+  color: #1b9b62;
+  background: #effff4;
+}
+
+.resultBadgeWrong {
+  color: #ff6b2c;
+  background: #fff4ea;
+}
+
+.knowledgeOrder {
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  border-radius: 28px;
+  background: #ffffff;
+  box-shadow: 0 10px 26px rgba(30, 41, 59, 0.06);
+  @include tap-active;
+}
+
+.orderLine {
+  width: 22px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.orderDot,
+.orderDotOrange {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+
+.orderDot {
+  background: #27c37a;
+}
+
+.orderDotOrange {
+  background: #ff8a3d;
+}
+
+.orderRail {
+  width: 2px;
+  height: 58px;
+  margin: 8px 0;
+  background: #e1e6e2;
+}
+
+.knowledgeMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.knowledgeTitle {
+  display: block;
+  color: #111827;
+  font-size: 30px;
+  font-weight: $weight-bold;
+}
+
+.knowledgeDesc {
+  display: block;
+  margin-top: 8px;
+  color: #68736c;
+  font-size: 23px;
+  line-height: 1.45;
+}
+
+.knowledgeButton {
+  width: 112px;
+  height: 70px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20px;
+  color: #1b9b62;
+  background: #effff4;
+  border: 2px solid rgba(39, 195, 122, 0.3);
+  font-size: 25px;
+  font-weight: $weight-bold;
+}
+
+.masteryBar {
+  padding: 22px 24px;
+  border-radius: 26px;
+  background: #ffffff;
+  border: 2px solid transparent;
+  box-shadow: 0 10px 26px rgba(30, 41, 59, 0.06);
+}
+
+.masteryBarActive {
+  border-color: rgba(39, 195, 122, 0.32);
+  background: #f3fff7;
+}
+
+.masteryCheck {
+  display: block;
+  color: #111827;
+  font-size: 28px;
+  font-weight: $weight-bold;
+}
+
+.masteryText {
+  display: block;
+  margin-top: 8px;
+  color: #68736c;
+  font-size: 23px;
+}
+
+.bottomBar {
+  position: fixed;
+  left: 28px;
+  right: 28px;
+  bottom: 34px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  display: flex;
+}
+
+.submitButton,
+.nextButton {
+  flex: 1;
+  height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 28px;
+  color: #ffffff;
+  background: #111827;
+  box-shadow: 0 14px 30px rgba(17, 24, 39, 0.18);
+  font-size: 30px;
+  font-weight: $weight-bold;
+  @include btn-active;
+}
+
+.nextButton {
+  background: #27c37a;
+  box-shadow: 0 14px 30px rgba(39, 195, 122, 0.24);
+}
+
+.buttonDisabled {
+  color: #8a938d;
+  background: #e2e6e2;
+  box-shadow: none;
+}
+
+.errorCard {
+  margin-top: 30vh;
+  padding: 42px 34px;
+  border-radius: 30px;
+  background: #ffffff;
+  text-align: center;
+  box-shadow: 0 12px 30px rgba(30, 41, 59, 0.08);
+}
+
+.errorTitle {
+  display: block;
+  color: #111827;
+  font-size: 32px;
+  font-weight: $weight-bold;
+}
+
+.errorText {
+  display: block;
+  margin-top: 12px;
+  color: #68736c;
+  font-size: 24px;
+}
+
+.errorButton {
+  height: 78px;
+  margin-top: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 22px;
+  color: #ffffff;
+  background: #27c37a;
+  font-size: 28px;
+  font-weight: $weight-bold;
+}

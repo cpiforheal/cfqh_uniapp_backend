@@ -235,7 +235,7 @@ export class RequestError extends Error {
   }
 }
 
-async function request<T>(path: string, options: RequestOptions = {}): Promise<T | null> {
+export async function request<T>(path: string, options: RequestOptions = {}): Promise<T | null> {
   try {
     if (MINIAPP_ENV.useCloudGateway && IS_WEAPP) {
       if (!Taro.cloud?.callFunction) {
@@ -309,30 +309,47 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 }
 
 let sessionLoginDone = false
+let loginPromise: Promise<string | undefined> | null = null
 
 async function loginMiniappUser(profile?: { nickname?: string; avatarUrl?: string }) {
   const openId = getOpenId()
   if (openId && !profile && sessionLoginDone) {
     return openId
   }
-
-  const code = await getWechatLoginCode()
-  const result = await request<LoginResponse>('/auth/wechat-login', {
-    method: 'POST',
-    data: {
-      ...(code ? { code } : {}),
-      ...(openId ? { openId } : {}),
-      ...(profile?.nickname ? { nickname: profile.nickname } : {}),
-      ...(profile?.avatarUrl ? { avatarUrl: profile.avatarUrl } : {}),
-      ...getClientLoginPayload(),
-    },
-  })
-  const resolvedOpenId = result?.openId || openId
-  if (resolvedOpenId) {
-    Taro.setStorageSync(OPEN_ID_STORAGE_KEY, resolvedOpenId)
-    sessionLoginDone = true
+  if (!profile && loginPromise) {
+    return loginPromise
   }
-  return resolvedOpenId
+
+  const doLogin = async () => {
+    const code = await getWechatLoginCode()
+    const result = await request<LoginResponse>('/auth/wechat-login', {
+      method: 'POST',
+      data: {
+        ...(code ? { code } : {}),
+        ...(openId ? { openId } : {}),
+        ...(profile?.nickname ? { nickname: profile.nickname } : {}),
+        ...(profile?.avatarUrl ? { avatarUrl: profile.avatarUrl } : {}),
+        ...getClientLoginPayload(),
+      },
+    })
+    const resolvedOpenId = result?.openId || openId
+    if (resolvedOpenId) {
+      Taro.setStorageSync(OPEN_ID_STORAGE_KEY, resolvedOpenId)
+      sessionLoginDone = true
+    }
+    return resolvedOpenId
+  }
+
+  if (profile) {
+    return doLogin()
+  }
+
+  loginPromise = doLogin()
+  try {
+    return await loginPromise
+  } finally {
+    loginPromise = null
+  }
 }
 
 async function ensureLogin() {
@@ -340,25 +357,16 @@ async function ensureLogin() {
 }
 
 export async function loginWithWechatProfile() {
-  const getUserProfile = (Taro as unknown as { getUserProfile?: (options: { desc: string }) => Promise<{ userInfo?: { nickName?: string; avatarUrl?: string } }> }).getUserProfile
-  if (!getUserProfile) {
-    await loginMiniappUser()
-    return { ok: true, nickname: '微信用户', avatarUrl: '', profileSynced: false }
-  }
+  await loginMiniappUser()
+  return { ok: true, nickname: '微信用户', avatarUrl: '', profileSynced: false }
+}
 
-  let result: { userInfo?: { nickName?: string; avatarUrl?: string } }
-  try {
-    result = await getUserProfile({ desc: '用于展示学习账号头像昵称与同步登录台账' })
-  } catch (error) {
-    await loginMiniappUser()
-    return { ok: false, cancelled: true, nickname: '微信用户', avatarUrl: '' }
-  }
-  const userInfo = result.userInfo || {}
-  await loginMiniappUser({
-    nickname: userInfo.nickName || '微信用户',
-    avatarUrl: userInfo.avatarUrl || '',
+export async function syncProfile(fields: { realName?: string; className?: string; phoneTail?: string; wechatId?: string; nickname?: string }) {
+  await ensureLogin()
+  return request<{ id: string; realName: string | null; className: string | null; phoneTail: string | null; wechatId: string | null }>('/auth/update-profile', {
+    method: 'POST',
+    data: fields,
   })
-  return { ok: true, nickname: userInfo.nickName || '微信用户', avatarUrl: userInfo.avatarUrl || '', profileSynced: true }
 }
 
 function difficultyText(difficulty?: string) {
@@ -607,16 +615,22 @@ export async function getProfileOverview(): Promise<ProfileOverview> {
   }
 
   const [me, mistakes] = await Promise.all([
-    request<{ nickname?: string; avatarUrl?: string; authorization?: { licenseToken?: { code: string }; expiresAt?: string } }>('/auth/me'),
+    request<{ nickname?: string; avatarUrl?: string; realName?: string | null; className?: string | null; phoneTail?: string | null; wechatId?: string | null; authorization?: { licenseToken?: { code: string }; expiresAt?: string } }>('/auth/me'),
     request<Array<{ id: string }>>('/mistakes'),
   ])
 
   if (!me) return { ...profileMock, authorization }
+  const displayName = me.realName || me.nickname || '医护同学'
 
   return {
     ...profileMock,
-    nickname: me.nickname || '医护同学',
+    nickname: displayName,
+    avatarText: displayName.slice(0, 1),
     avatarUrl: me.avatarUrl,
+    realName: me.realName || null,
+    className: me.className || null,
+    phoneTail: me.phoneTail || null,
+    wechatId: me.wechatId || null,
     authorization: {
       ...authorization,
       tokenCode: me.authorization?.licenseToken?.code || getTokenCode(),

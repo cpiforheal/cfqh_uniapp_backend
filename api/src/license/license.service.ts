@@ -189,4 +189,86 @@ export class LicenseService {
       authorization,
     }
   }
+
+  private normalizeStudyCardCode(input: string) {
+    const trimmed = String(input || '').trim().toUpperCase()
+    const compact = trimmed.replace(/[^A-Z0-9]/g, '')
+    const candidates = new Set<string>()
+    if (trimmed) candidates.add(trimmed)
+    if (compact) {
+      candidates.add(compact)
+      if (compact.startsWith('SC') && compact.length > 2) candidates.add(`SC-${compact.slice(2)}`)
+      if (compact.length === 8) candidates.add(`SC-${compact}`)
+    }
+    return Array.from(candidates)
+  }
+
+  async activateStudyCard(dto: ActivateLicenseDto, openId: string, metadata?: ActivationAttemptMetadata) {
+    const user = await this.ensureUser(openId)
+
+    const codeCandidates = this.normalizeStudyCardCode(dto.code)
+    const token = await this.prisma.licenseToken.findFirst({
+      where: { code: { in: codeCandidates }, subjectScope: SubjectCode.study_card },
+    })
+    const codeNormalized = token?.code || codeCandidates[0]
+    if (!token) {
+      await this.recordActivationAttempt({ dto, openId, userId: user.id, codeNormalized, result: 'failed', reason: 'not_found', metadata })
+      return { authorized: false, reason: 'not_found' }
+    }
+    const expired = Boolean(token.expiresAt && token.expiresAt <= new Date())
+    if (token.status === LicenseStatus.disabled) {
+      await this.recordActivationAttempt({ dto, openId, userId: user.id, token, codeNormalized, result: 'failed', reason: 'disabled', metadata })
+      return { authorized: false, reason: 'disabled' }
+    }
+    if (token.status === LicenseStatus.expired || expired) {
+      await this.recordActivationAttempt({ dto, openId, userId: user.id, token, codeNormalized, result: 'failed', reason: 'expired', metadata })
+      return { authorized: false, reason: 'expired' }
+    }
+    if (token.boundOpenId && token.boundOpenId !== openId) {
+      await this.recordActivationAttempt({ dto, openId, userId: user.id, token, codeNormalized, result: 'failed', reason: 'bound_to_other_account', metadata })
+      return { authorized: false, reason: 'bound_to_other_account' }
+    }
+    if (!token.expiresAt) {
+      await this.recordActivationAttempt({ dto, openId, userId: user.id, token, codeNormalized, result: 'failed', reason: 'invalid_token', metadata })
+      return { authorized: false, reason: 'invalid_token' }
+    }
+
+    await this.prisma.studyCardAuthorization.upsert({
+      where: { userId: user.id },
+      update: { tokenId: token.id, expiresAt: token.expiresAt, openId },
+      create: { userId: user.id, openId, tokenId: token.id, expiresAt: token.expiresAt },
+    })
+
+    await this.prisma.licenseToken.update({
+      where: { id: token.id },
+      data: { status: LicenseStatus.bound, boundUserId: user.id, boundOpenId: openId, boundAt: new Date() },
+    })
+    await this.prisma.licenseToken.updateMany({
+      where: { boundOpenId: openId, status: LicenseStatus.bound, subjectScope: SubjectCode.study_card, id: { not: token.id } },
+      data: { status: LicenseStatus.disabled },
+    })
+
+    await this.recordActivationAttempt({ dto, openId, userId: user.id, token, codeNormalized, result: 'success', reason: 'authorized', metadata })
+    return this.studyCardStatus(openId)
+  }
+
+  async studyCardStatus(openId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { openId },
+      include: { studyCardAuth: { include: { token: true } } },
+    })
+    if (!user) return { authorized: false, reason: 'not_activated' }
+
+    const auth = user.studyCardAuth
+    if (!auth) return { authorized: false, reason: 'not_activated' }
+
+    const now = new Date()
+    const expired = auth.expiresAt <= now
+    const disabled = auth.token.status === LicenseStatus.disabled
+
+    if (expired) return { authorized: false, reason: 'expired', expiresAt: auth.expiresAt.toISOString() }
+    if (disabled) return { authorized: false, reason: 'disabled' }
+
+    return { authorized: true, reason: 'authorized', expiresAt: auth.expiresAt.toISOString() }
+  }
 }

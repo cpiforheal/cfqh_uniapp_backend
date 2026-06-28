@@ -160,6 +160,11 @@ export interface AdminAnalyticsStudentRow {
   openId: string
   nickname: string
   avatarUrl?: string | null
+  remark?: string | null
+  realName?: string | null
+  className?: string | null
+  phoneTail?: string | null
+  wechatId?: string | null
   practiceCount: number
   correctRate: number
   mistakeCount: number
@@ -233,6 +238,11 @@ export interface AdminLoginUserRow {
   openId: string
   nickname: string
   avatarUrl?: string | null
+  remark?: string | null
+  realName?: string | null
+  className?: string | null
+  phoneTail?: string | null
+  wechatId?: string | null
   loginCount: number
   firstLoginAt: string
   lastLoginAt?: string | null

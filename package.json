@@ -4,15 +4,18 @@
   "private": true,
   "description": "专转本医护大类自学辅助微信小程序",
   "scripts": {
-    "dev:weapp": "taro build --type weapp --watch",
+    "dev:weapp": "CFQH_LOCAL_TARGET=devtools node scripts/weapp-local-dev.mjs --watch",
     "dev:weapp:local": "node scripts/weapp-local-dev.mjs --watch",
     "dev:weapp:devtools": "CFQH_LOCAL_TARGET=devtools node scripts/weapp-local-dev.mjs --watch",
+    "dev:weapp:cloud": "taro build --type weapp --watch",
+    "dev:api": "pnpm --dir api run start:dev",
     "build:weapp": "taro build --type weapp",
     "build:weapp:local": "node scripts/weapp-local-dev.mjs",
     "build:weapp:devtools": "CFQH_LOCAL_TARGET=devtools node scripts/weapp-local-dev.mjs",
     "release:preflight": "node scripts/release-preflight.mjs",
     "release:preflight:prod": "node scripts/release-preflight.mjs --production --strict-git",
     "check:miniapp-dist": "node scripts/check-miniapp-dist.mjs",
+    "check:miniapp-local-dist": "node scripts/check-miniapp-local-dist.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

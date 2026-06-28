@@ -114,6 +114,24 @@ function checkGitStatus() {
   }
 }
 
+function checkMiniappDist() {
+  if (!exists('dist')) {
+    if (production) fail('小程序 dist/ 不存在，不能提交审核')
+    else warn('小程序 dist/ 不存在，跳过构建产物检查')
+    return
+  }
+
+  try {
+    execSync('node scripts/check-miniapp-dist.mjs', { cwd: root, encoding: 'utf8', stdio: 'pipe' })
+    pass('小程序 dist 产物通过发布检查')
+  } catch (error) {
+    const output = [error.stdout, error.stderr].filter(Boolean).join('\n').trim()
+    const message = `小程序 dist 产物不适合发布${output ? `：\n${output}` : ''}`
+    if (production) fail(message)
+    else warn(message)
+  }
+}
+
 function checkProductionEnv() {
   if (!production) {
     warn('未启用 --production，跳过真实生产环境变量校验')
@@ -151,6 +169,7 @@ function printResults() {
 
 check(exists('docs/launch-readiness.md'), '上线验收文档存在', '缺少 docs/launch-readiness.md')
 checkStaticReleaseGuards()
+checkMiniappDist()
 checkGitStatus()
 checkProductionEnv()
 printResults()

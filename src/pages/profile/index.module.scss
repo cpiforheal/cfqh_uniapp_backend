@@ -45,12 +45,6 @@
   font-weight: $weight-bold;
 }
 
-.avatarImage {
-  width: 112px;
-  height: 112px;
-  border-radius: 28px;
-}
-
 .userInfo {
   flex: 1;
 }
@@ -84,6 +78,15 @@
   color: $color-text-primary;
   font-size: $font-heading;
   font-weight: $weight-bold;
+}
+
+.profileMeta {
+  display: block;
+  margin-top: 6px;
+  color: $color-text-muted;
+  font-size: $font-hint;
+  font-weight: $weight-normal;
+  line-height: 1.35;
 }
 
 .statusPill {

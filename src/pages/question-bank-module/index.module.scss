@@ -348,3 +348,43 @@
   font-size: $font-body;
   font-weight: $weight-medium;
 }
+
+// === 学习小结浮层 ===
+
+.summaryToast {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 36px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(16px);
+  border-radius: $radius-md;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  z-index: 999;
+  animation: fadeInUp 0.3s ease;
+}
+
+.summaryEmoji {
+  font-size: 36px;
+}
+
+.summaryText {
+  color: $color-text-primary;
+  font-size: $font-body;
+  font-weight: $weight-medium;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -40%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}

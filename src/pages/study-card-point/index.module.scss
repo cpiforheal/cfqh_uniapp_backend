@@ -1,0 +1,308 @@
+@use '../../styles/theme.scss' as *;
+
+.page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f7f8f6;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.loadingText {
+  display: block;
+  margin-top: 40vh;
+  color: #7a827c;
+  font-size: 28px;
+  text-align: center;
+}
+
+.topBar {
+  flex-shrink: 0;
+  padding: 30px 30px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.sourceInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.sourceLabel {
+  display: block;
+  color: #1b9b62;
+  font-size: 23px;
+  font-weight: $weight-bold;
+}
+
+.sourceTitle {
+  display: block;
+  margin-top: 8px;
+  color: #111827;
+  font-size: 31px;
+  font-weight: $weight-bold;
+  line-height: 1.32;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pageIndicator {
+  min-width: 112px;
+  height: 74px;
+  padding: 0 14px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  border-radius: 22px;
+  background: #111827;
+  box-sizing: border-box;
+}
+
+.pageIndicatorCurrent {
+  color: #ff8a3d;
+  font-size: 42px;
+  font-weight: $weight-bold;
+}
+
+.pageIndicatorTotal {
+  margin-left: 4px;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 24px;
+  font-weight: $weight-medium;
+}
+
+.dotRow {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px 0 18px;
+}
+
+.dot,
+.dotActive {
+  height: 12px;
+  border-radius: $radius-pill;
+  transition: all 0.2s ease;
+}
+
+.dot {
+  width: 12px;
+  background: #dce2dd;
+}
+
+.dotActive {
+  width: 34px;
+  background: #27c37a;
+}
+
+.swiperWrap {
+  flex: 1;
+  min-height: 0;
+  padding: 0 22px;
+  overflow: hidden;
+}
+
+.swiper {
+  width: 100%;
+  height: 100%;
+}
+
+.swiperItem {
+  width: 100%;
+  height: 100%;
+  padding: 8px 4px;
+  box-sizing: border-box;
+}
+
+.cardScroll {
+  width: 100%;
+  height: 100%;
+}
+
+.emptyCard {
+  min-height: 100%;
+  padding: 56px 34px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-radius: 32px;
+  background: #ffffff;
+  box-shadow: 0 16px 38px rgba(30, 41, 59, 0.1);
+  box-sizing: border-box;
+}
+
+.emptyTitle {
+  display: block;
+  color: #111827;
+  font-size: 34px;
+  font-weight: $weight-bold;
+  text-align: center;
+}
+
+.emptyText {
+  display: block;
+  margin-top: 16px;
+  color: #68736c;
+  font-size: 26px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+.paperCard {
+  min-height: 100%;
+  padding: 32px 28px 40px;
+  border-radius: 32px;
+  background: #ffffff;
+  box-shadow: 0 16px 38px rgba(30, 41, 59, 0.1);
+  box-sizing: border-box;
+}
+
+.paperTop {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.cardNumber {
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 24px;
+  color: #ffffff;
+  background: #27c37a;
+  font-size: 34px;
+  font-weight: $weight-bold;
+  box-shadow: 0 8px 18px rgba(39, 195, 122, 0.22);
+}
+
+.cardTitleBlock {
+  flex: 1;
+  min-width: 0;
+}
+
+.cardKicker {
+  display: block;
+  color: #ff6b2c;
+  font-size: 22px;
+  font-weight: $weight-bold;
+}
+
+.cardTitle {
+  display: block;
+  margin-top: 6px;
+  color: #111827;
+  font-size: 34px;
+  font-weight: $weight-bold;
+  line-height: 1.32;
+}
+
+.highlightBlock {
+  position: relative;
+  margin-top: 34px;
+  padding: 28px 28px 28px 34px;
+  border-radius: 28px;
+  background: #f3fff7;
+  border: 1px solid rgba(39, 195, 122, 0.18);
+}
+
+.highlightBar {
+  position: absolute;
+  top: 28px;
+  bottom: 28px;
+  left: 20px;
+  width: 6px;
+  border-radius: $radius-pill;
+  background: #27c37a;
+}
+
+.highlightText {
+  color: #111827;
+  font-size: 32px;
+  font-weight: $weight-medium;
+  line-height: 1.9;
+}
+
+.detailBlock {
+  margin-top: 26px;
+  padding: 28px 24px;
+  border-radius: 28px;
+  background: #f5f6f4;
+}
+
+.detailTitle {
+  display: block;
+  color: #111827;
+  font-size: 28px;
+  font-weight: $weight-bold;
+}
+
+.detailPara {
+  margin-top: 22px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.paraIndex {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  color: #1b9b62;
+  background: #e8fff0;
+  font-size: 22px;
+  font-weight: $weight-bold;
+}
+
+.paraText {
+  flex: 1;
+  color: #3f4c44;
+  font-size: 26px;
+  line-height: 1.9;
+}
+
+.bottomBar {
+  flex-shrink: 0;
+  display: flex;
+  gap: 16px;
+  padding: 18px 24px;
+  padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  background: #f7f8f6;
+}
+
+.btnBack,
+.btnNext {
+  flex: 1;
+  height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 26px;
+  font-size: 28px;
+  font-weight: $weight-bold;
+  @include btn-active;
+}
+
+.btnBack {
+  color: #111827;
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgba(30, 41, 59, 0.08);
+}
+
+.btnNext {
+  color: #ffffff;
+  background: #27c37a;
+  box-shadow: 0 12px 26px rgba(39, 195, 122, 0.22);
+}

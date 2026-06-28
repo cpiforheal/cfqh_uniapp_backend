@@ -16,4 +16,9 @@ export class AuthController {
   me(@Req() request: Request) {
     return this.authService.me(request)
   }
+
+  @Post('update-profile')
+  updateProfile(@Body() dto: { nickname?: string; realName?: string; className?: string; phoneTail?: string; wechatId?: string }, @Req() request: Request) {
+    return this.authService.updateProfile(request, dto)
+  }
 }

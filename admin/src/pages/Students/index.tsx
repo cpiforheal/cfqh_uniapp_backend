@@ -1,11 +1,10 @@
 import { ProColumns, ProTable, StatisticCard } from '@ant-design/pro-components'
-import { Alert, Avatar, Button, Col, Empty, Input, Popconfirm, Progress, Row, Select, Space, Tag, Typography, message } from 'antd'
+import { Alert, Button, Col, Empty, Input, Popconfirm, Progress, Row, Select, Space, Tag, Typography, message } from 'antd'
 import { useRef, useState } from 'react'
 import type { ActionType } from '@ant-design/pro-components'
-import { UserOutlined } from '@ant-design/icons'
 import { SubjectAwarePageContainer } from '@/components/SubjectAwarePageContainer'
 import { adminFetch, describeAdminFetchError } from '@/services/adminApi'
-import { disableStudentLicenseToken, extendStudentLicenseToken, issueStudentLicenseToken, issueUnboundLicenseToken, queryAdminExportStudents } from '@/services/adminNursing'
+import { disableStudentLicenseToken, extendStudentLicenseToken, issueStudentLicenseToken, issueUnboundLicenseToken, queryAdminExportStudents, updateStudentRemark } from '@/services/adminNursing'
 import type { AdminAnalytics, AdminAnalyticsStudentRow } from '@/types/content'
 
 async function queryAnalytics(): Promise<AdminAnalytics> {
@@ -42,31 +41,46 @@ export default function StudentsPage() {
   const [keyword, setKeyword] = useState('')
   const [rateFilter, setRateFilter] = useState<string>('all')
   const [activeFilter, setActiveFilter] = useState<string>('all')
+  const [syncFilter, setSyncFilter] = useState<string>('all')
   const [latestOverview, setLatestOverview] = useState<AdminAnalytics['overview']>()
   const [latestModuleStats, setLatestModuleStats] = useState<AdminAnalytics['moduleStats']>([])
   const [latestQuestionStats, setLatestQuestionStats] = useState<AdminAnalytics['questionStats']>([])
 
   const columns: ProColumns<AdminAnalyticsStudentRow>[] = [
     {
-      title: '学生',
-      dataIndex: 'nickname',
-      width: 280,
+      title: '学员信息',
+      dataIndex: 'realName',
+      width: 220,
       render: (_, record) => (
-        <Space size={8} align="center">
-          <Avatar size={36} src={record.avatarUrl || undefined} icon={!record.avatarUrl ? <UserOutlined /> : undefined} />
-          <Space direction="vertical" size={0} style={{ minWidth: 0 }}>
-            <Typography.Text strong style={{ display: 'block', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {record.nickname || '微信用户'}
-            </Typography.Text>
-            <Typography.Text
-              type="secondary"
-              copyable={{ text: record.openId }}
-              style={{ display: 'block', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}
-            >
-              {record.openId.slice(0, 12)}...
-            </Typography.Text>
-          </Space>
+        <Space direction="vertical" size={2}>
+          <Typography.Text strong>{record.realName || <Typography.Text type="secondary">未填写</Typography.Text>}</Typography.Text>
+          {record.className && <Typography.Text type="secondary" style={{ fontSize: 12 }}>{record.className}</Typography.Text>}
+          {record.wechatId && <Typography.Text type="secondary" style={{ fontSize: 12 }}>微信：{record.wechatId}</Typography.Text>}
+          <Typography.Text type="secondary" copyable={{ text: record.openId }} style={{ fontSize: 11, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}>
+            {record.openId.slice(0, 10)}...
+          </Typography.Text>
         </Space>
+      ),
+    },
+    {
+      title: '备注',
+      dataIndex: 'remark',
+      width: 150,
+      search: false,
+      render: (_, record) => (
+        <Typography.Text
+          editable={{
+            onChange: async (value) => {
+              try {
+                await updateStudentRemark(record.userId, value)
+                message.success('备注已更新')
+                actionRef.current?.reload()
+              } catch { message.error('更新失败') }
+            },
+          }}
+        >
+          {record.remark || ''}
+        </Typography.Text>
       ),
     },
     { title: '练习次数', dataIndex: 'practiceCount', sorter: true, search: false, width: 100 },
@@ -164,13 +178,15 @@ export default function StudentsPage() {
             let students = analytics.students
             if (keyword.trim()) {
               const k = keyword.trim().toLowerCase()
-              students = students.filter((item) => item.openId.toLowerCase().includes(k) || item.nickname.toLowerCase().includes(k))
+              students = students.filter((item) => item.openId.toLowerCase().includes(k) || item.nickname.toLowerCase().includes(k) || (item.remark || '').toLowerCase().includes(k) || (item.realName || '').toLowerCase().includes(k) || (item.className || '').toLowerCase().includes(k) || (item.wechatId || '').toLowerCase().includes(k))
             }
             if (rateFilter === 'low') students = students.filter((s) => s.correctRate < 60)
             else if (rateFilter === 'mid') students = students.filter((s) => s.correctRate >= 60 && s.correctRate < 80)
             else if (rateFilter === 'high') students = students.filter((s) => s.correctRate >= 80)
             if (activeFilter === 'inactive') students = students.filter((s) => s.recentPracticeDays === 0)
             else if (activeFilter === 'active') students = students.filter((s) => s.recentPracticeDays >= 3)
+            if (syncFilter === 'unsynced') students = students.filter((s) => !s.realName)
+            else if (syncFilter === 'synced') students = students.filter((s) => !!s.realName)
             return { data: students, success: true }
           } catch (error) {
             console.warn('query analytics failed', error)
@@ -206,6 +222,17 @@ export default function StudentsPage() {
               { label: '活跃度: 全部', value: 'all' },
               { label: '7天未活跃', value: 'inactive' },
               { label: '活跃 ≥3天', value: 'active' },
+            ]}
+          />,
+          <Select
+            key="sync"
+            value={syncFilter}
+            onChange={(v) => { setSyncFilter(v); setTimeout(() => actionRef.current?.reload(), 0) }}
+            style={{ width: 130 }}
+            options={[
+              { label: '资料: 全部', value: 'all' },
+              { label: '未完善', value: 'unsynced' },
+              { label: '已完善', value: 'synced' },
             ]}
           />,
           <Button
@@ -251,7 +278,7 @@ export default function StudentsPage() {
             allowClear
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
-            placeholder="搜索 openId 或 昵称"
+            placeholder="搜索姓名 / 班级 / 微信号 / 备注 / openId"
             style={{ width: 220 }}
           />,
           <Button key="reload" onClick={() => actionRef.current?.reload()}>查询</Button>,

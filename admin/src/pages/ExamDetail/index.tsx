@@ -1,5 +1,5 @@
-import { CopyOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons'
-import { Alert, Button, Card, Col, Descriptions, Drawer, Empty, Form, Input, InputNumber, message, Modal, Popconfirm, Row, Select, Space, Table, Tabs, Tag, Typography, Upload } from 'antd'
+import { CopyOutlined, PlusOutlined, UploadOutlined, UserOutlined } from '@ant-design/icons'
+import { Alert, Avatar, Button, Card, Col, Descriptions, Drawer, Empty, Form, Input, InputNumber, message, Modal, Popconfirm, Row, Select, Space, Table, Tabs, Tag, Typography, Upload } from 'antd'
 import { useEffect, useRef, useState } from 'react'
 import { SubjectAwarePageContainer } from '@/components/SubjectAwarePageContainer'
 import { describeAdminFetchError } from '@/services/adminApi'
@@ -34,6 +34,18 @@ function formatOptionsJson(value?: string) {
   } catch {
     return value || '-'
   }
+}
+
+function getStudentDisplayName(user?: ExamSessionItem['user']) {
+  return user?.realName || user?.nickname || (user?.openId ? user.openId.slice(0, 8) : '未命名学生')
+}
+
+function getStudentMeta(user?: ExamSessionItem['user']) {
+  return [
+    user?.className,
+    user?.wechatId ? `微信：${user.wechatId}` : '',
+    user?.phoneTail ? `尾号：${user.phoneTail}` : '',
+  ].filter(Boolean).join(' · ') || user?.openId || ''
 }
 
 export default function ExamDetailPage() {
@@ -398,7 +410,18 @@ export default function ExamDetailPage() {
                   dataSource={sessions}
                   pagination={false}
                   columns={[
-                    { title: '学生', render: (_, r) => r.user.nickname || r.user.openId.slice(0, 8) },
+                    {
+                      title: '学生',
+                      render: (_, r) => (
+                        <Space size={8}>
+                          <Avatar size={28} icon={<UserOutlined />} />
+                          <Space direction="vertical" size={0}>
+                            <Typography.Text>{getStudentDisplayName(r.user)}</Typography.Text>
+                            <Typography.Text type="secondary" style={{ fontSize: 12 }}>{getStudentMeta(r.user)}</Typography.Text>
+                          </Space>
+                        </Space>
+                      ),
+                    },
                     { title: '状态', dataIndex: 'status', render: (v) => ({ in_progress: <Tag>答题中</Tag>, submitted: <Tag color="orange">待批改</Tag>, graded: <Tag color="green">已批改</Tag> }[v as string]) },
                     { title: '客观题分', dataIndex: 'objectiveScore', render: (v) => v ?? '-' },
                     { title: '总分', dataIndex: 'totalScore', render: (v) => v ?? '-' },
@@ -519,7 +542,7 @@ export default function ExamDetailPage() {
       </Drawer>
 
       <Modal
-        title={`批改 - ${gradingSession?.user.nickname || ''}`}
+        title={`批改 - ${getStudentDisplayName(gradingSession?.user)}`}
         open={!!gradingSession}
         onCancel={() => { setGradingSession(null); gradeForm.resetFields() }}
         onOk={() => gradeForm.submit()}

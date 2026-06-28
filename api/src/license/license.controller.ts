@@ -34,4 +34,23 @@ export class LicenseController {
   status(@Req() request: Request) {
     return this.licenseService.status(requireCurrentOpenId(request, this.configService))
   }
+
+  @Post('activate-study-card')
+  activateStudyCard(@Body() dto: ActivateLicenseDto, @Req() request: Request) {
+    return this.licenseService.activateStudyCard(dto, requireCurrentOpenId(request, this.configService), {
+      clientEnv: dto.clientEnv,
+      platform: dto.platform,
+      device: dto.device,
+      sdkVersion: dto.sdkVersion,
+      appVersion: dto.appVersion,
+      source: dto.source || 'miniapp',
+      ip: firstHeader(request.headers['x-forwarded-for']) || request.ip,
+      userAgent: firstHeader(request.headers['user-agent']),
+    })
+  }
+
+  @Get('study-card-status')
+  studyCardStatus(@Req() request: Request) {
+    return this.licenseService.studyCardStatus(requireCurrentOpenId(request, this.configService))
+  }
 }

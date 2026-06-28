@@ -84,7 +84,9 @@ export default function ExamSessionPage() {
     if (existing) clearTimeout(existing)
     const timer = setTimeout(() => {
       pendingRef.current.delete(questionId)
-      submitExamAnswer(sessionId, questionId, answer).catch(() => {})
+      submitExamAnswer(sessionId, questionId, answer).catch(() => {
+        Taro.showToast({ title: '答案暂存失败，请检查网络', icon: 'none', duration: 2000 })
+      })
     }, 500)
     pendingRef.current.set(questionId, timer)
   }, [sessionId])

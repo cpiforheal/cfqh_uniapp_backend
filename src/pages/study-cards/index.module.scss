@@ -1,0 +1,356 @@
+@use '../../styles/theme.scss' as *;
+
+.page {
+  min-height: 100vh;
+  padding: 0 0 132px;
+  background: $color-bg-page;
+  box-sizing: border-box;
+}
+
+.hero {
+  padding: 52px 30px 24px;
+  border-radius: 0 0 30px 30px;
+  background: linear-gradient(180deg, #effbf7 0%, #f8fffc 100%);
+  border-bottom: 1px solid rgba(92, 214, 180, 0.12);
+}
+
+.heroTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.heroTitleBlock {
+  flex: 1;
+  min-width: 0;
+}
+
+.heroEyebrow {
+  display: block;
+  color: $color-primary-dark;
+  font-size: 22px;
+  font-weight: $weight-normal;
+}
+
+.heroTitle {
+  display: block;
+  margin-top: 8px;
+  color: $color-text-primary;
+  font-size: 36px;
+  font-weight: $weight-medium;
+  line-height: 1.28;
+}
+
+.heroStreak {
+  height: 54px;
+  padding: 0 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-pill;
+  color: $color-text-muted;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(92, 214, 180, 0.16);
+  font-size: 22px;
+  font-weight: $weight-normal;
+}
+
+.recommendCard {
+  margin-top: 22px;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(92, 214, 180, 0.14);
+  box-shadow: 0 10px 26px rgba(56, 201, 160, 0.08);
+  @include tap-active;
+}
+
+.recommendMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.recommendLabel {
+  display: inline-flex;
+  padding: 5px 13px;
+  border-radius: $radius-pill;
+  color: $color-primary-dark;
+  background: rgba(92, 214, 180, 0.12);
+  font-size: 20px;
+  font-weight: $weight-normal;
+}
+
+.recommendTitle {
+  display: block;
+  margin-top: 13px;
+  color: $color-text-primary;
+  font-size: 32px;
+  font-weight: $weight-medium;
+  line-height: 1.32;
+}
+
+.recommendMeta {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: $color-text-muted;
+  font-size: 22px;
+  line-height: 1.35;
+}
+
+.recommendAction {
+  width: 104px;
+  height: 64px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 22px;
+  color: #ffffff;
+  background: $color-primary-dark;
+  box-shadow: 0 8px 18px rgba(56, 201, 160, 0.18);
+}
+
+.recommendActionText {
+  font-size: 25px;
+  font-weight: $weight-medium;
+}
+
+.summaryStrip {
+  margin: 26px 30px 0;
+  padding: 20px 0;
+  display: flex;
+  align-items: center;
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 10px 26px rgba(30, 41, 59, 0.06);
+}
+
+.summaryItem {
+  flex: 1;
+  text-align: center;
+}
+
+.summaryValue {
+  display: block;
+  color: $color-text-primary;
+  font-size: 34px;
+  font-weight: $weight-medium;
+}
+
+.summaryLabel {
+  display: block;
+  margin-top: 5px;
+  color: #7a827c;
+  font-size: 21px;
+}
+
+.summaryDivider {
+  width: 1px;
+  height: 52px;
+  background: #edf0ed;
+}
+
+.sectionHead {
+  margin: 34px 30px 16px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.sectionTitle {
+  color: $color-text-primary;
+  font-size: 32px;
+  font-weight: $weight-medium;
+}
+
+.sectionHint {
+  color: #7a827c;
+  font-size: 22px;
+}
+
+.moduleList {
+  padding: 0 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.taskCard {
+  position: relative;
+  display: flex;
+  gap: 18px;
+  padding: 26px 24px;
+  border-radius: 28px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(30, 41, 59, 0.07);
+  overflow: hidden;
+  @include tap-active;
+}
+
+.taskCardDone {
+  background: #fbfffc;
+}
+
+.taskCardMuted {
+  opacity: 0.55;
+}
+
+.routeColumn {
+  width: 24px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.routeDot {
+  width: 18px;
+  height: 18px;
+  margin-top: 8px;
+  border-radius: 50%;
+  background: $color-primary-dark;
+  box-shadow: 0 0 0 8px rgba(92, 214, 180, 0.12);
+}
+
+.tone_green { background: $color-primary-dark; box-shadow: 0 0 0 8px rgba(92, 214, 180, 0.12); }
+.tone_orange { background: #ff7a30; box-shadow: 0 0 0 8px rgba(255, 122, 48, 0.12); }
+.tone_blue { background: #2f80ed; box-shadow: 0 0 0 8px rgba(47, 128, 237, 0.12); }
+.tone_purple { background: #8b5cf6; box-shadow: 0 0 0 8px rgba(139, 92, 246, 0.12); }
+
+.routeLine {
+  flex: 1;
+  width: 2px;
+  margin-top: 14px;
+  background: #e7ece8;
+}
+
+.taskBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.taskTop {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.taskTitleWrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.taskMeta {
+  display: block;
+  color: $color-primary-dark;
+  font-size: 21px;
+  font-weight: $weight-medium;
+}
+
+.taskTitle {
+  display: block;
+  margin-top: 6px;
+  color: $color-text-primary;
+  font-size: 31px;
+  font-weight: $weight-medium;
+  line-height: 1.32;
+}
+
+.taskIcon {
+  width: 76px;
+  height: 76px;
+  flex-shrink: 0;
+  opacity: 0.78;
+}
+
+.taskFacts {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.factStrong,
+.factText,
+.factGreen {
+  padding: 7px 14px;
+  border-radius: $radius-pill;
+  font-size: 21px;
+  font-weight: $weight-medium;
+}
+
+.factStrong {
+  color: $color-text-primary;
+  background: #f3f4f2;
+}
+
+.factText {
+  color: #66736b;
+  background: #f7f8f6;
+}
+
+.factGreen {
+  color: $color-primary-dark;
+  background: rgba(92, 214, 180, 0.1);
+}
+
+.progressRow {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.progressTrack {
+  flex: 1;
+  height: 10px;
+  border-radius: $radius-pill;
+  background: #eef1ee;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: $radius-pill;
+  background: $gradient-btn-primary;
+}
+
+.progressText {
+  min-width: 58px;
+  color: $color-primary-dark;
+  font-size: 21px;
+  font-weight: $weight-medium;
+  text-align: right;
+}
+
+.taskButton {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  width: 112px;
+  height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  color: #ffffff;
+  background: $gradient-btn-primary;
+  font-size: 24px;
+  font-weight: $weight-medium;
+  box-shadow: 0 8px 18px rgba(56, 201, 160, 0.18);
+}
+
+.taskButtonDone {
+  color: $color-primary-dark;
+  background: rgba(92, 214, 180, 0.1);
+  box-shadow: none;
+  border: 1px solid rgba(92, 214, 180, 0.24);
+}

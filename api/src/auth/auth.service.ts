@@ -59,7 +59,6 @@ export class AuthService {
   async wechatLogin(dto: WechatLoginDto, request: Request) {
     const openId = await this.resolveLoginOpenId(dto, request)
     const nickname = this.cleanText(dto.nickname)
-    const avatarUrl = this.cleanText(dto.avatarUrl)
     const clientEnv = this.cleanText(dto.clientEnv)
     const platform = this.cleanText(dto.platform)
     const device = this.cleanText(dto.device)
@@ -73,7 +72,6 @@ export class AuthService {
       where: { openId },
       update: {
         nickname,
-        avatarUrl,
         loginCount: { increment: 1 },
         lastLoginAt: new Date(),
         lastClientEnv: clientEnv,
@@ -84,7 +82,6 @@ export class AuthService {
       create: {
         openId,
         nickname: nickname || '微信用户',
-        avatarUrl,
         loginCount: 1,
         lastLoginAt: new Date(),
         lastClientEnv: clientEnv,
@@ -121,5 +118,26 @@ export class AuthService {
     })
     if (!user) throw new NotFoundException('用户不存在')
     return user
+  }
+
+  async updateProfile(request: Request, dto: { nickname?: string; realName?: string; className?: string; phoneTail?: string; wechatId?: string }) {
+    const openId = requireLoginOpenId(request, this.configService)
+    const realName = this.cleanText(dto.realName)
+    const className = this.cleanText(dto.className)
+    const phoneTail = this.cleanText(dto.phoneTail)
+    const wechatId = this.cleanText(dto.wechatId)
+    const nickname = this.cleanText(dto.nickname)
+    const data: Record<string, string | null> = {}
+    if (realName !== undefined) data.realName = realName || null
+    if (className !== undefined) data.className = className || null
+    if (phoneTail !== undefined) data.phoneTail = phoneTail || null
+    if (wechatId !== undefined) data.wechatId = wechatId || null
+    if (nickname) data.nickname = nickname
+    if (Object.keys(data).length === 0) throw new BadRequestException('至少提供一个字段')
+    return this.prisma.user.update({
+      where: { openId },
+      data,
+      select: { id: true, openId: true, nickname: true, realName: true, className: true, phoneTail: true, wechatId: true },
+    })
   }
 }

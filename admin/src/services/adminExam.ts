@@ -72,7 +72,15 @@ export interface ExamSessionItem {
   rank?: number
   hideCount: number
   hideDurationMs: number
-  user: { nickname?: string; openId: string }
+  user: {
+    nickname?: string | null
+    openId: string
+    avatarUrl?: string | null
+    realName?: string | null
+    className?: string | null
+    phoneTail?: string | null
+    wechatId?: string | null
+  }
 }
 
 export interface ExamSessionDetail extends ExamSessionItem {

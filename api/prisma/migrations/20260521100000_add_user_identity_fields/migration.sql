@@ -1,0 +1,5 @@
+ALTER TABLE "User" ADD COLUMN "remark" TEXT;
+ALTER TABLE "User" ADD COLUMN "realName" TEXT;
+ALTER TABLE "User" ADD COLUMN "className" TEXT;
+ALTER TABLE "User" ADD COLUMN "phoneTail" TEXT;
+ALTER TABLE "User" ADD COLUMN "wechatId" TEXT;

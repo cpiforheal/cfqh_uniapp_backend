@@ -1,7 +1,7 @@
 import { Text, View } from '@tarojs/components'
 import Taro, { useDidShow, usePullDownRefresh } from '@tarojs/taro'
 import { useQuery } from '@tanstack/react-query'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getLicenseStatus, getModuleQuestions, getMyFavorites, getMyMistakes, resetChapterRecords } from '@/services/nursing'
 import { useAuthStore } from '@/stores/auth'
 import type { PracticeQuestionSummary } from '@/types/study'
@@ -23,6 +23,9 @@ export default function QuestionBankModulePage() {
   const [questions, setQuestions] = useState<PracticeQuestionSummary[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [expandedChapter, setExpandedChapter] = useState<string>('')
+  const [showSummary, setShowSummary] = useState(false)
+  const [summaryData, setSummaryData] = useState({ count: 0, correct: 0 })
+  const prevDoneRef = useRef(0)
   const [filter, setFilter] = useState<FilterType>(() => {
     try {
       const saved = Taro.getStorageSync<string>(`cfqh_filter_${moduleCode}`)
@@ -57,19 +60,20 @@ export default function QuestionBankModulePage() {
 
   const authorized = Boolean(licenseStatus?.authorized)
 
-  const loadQuestions = useCallback(async () => {
+  const loadQuestions = useCallback(async (): Promise<PracticeQuestionSummary[]> => {
     setIsLoading(true)
     try {
       const status = await getLicenseStatus()
-      if (!status.authorized) { setQuestions([]); return }
+      if (!status.authorized) { setQuestions([]); return [] }
       const tokenCode = status.authorization?.licenseToken?.code
       if (tokenCode) setAuthorized(tokenCode, status.authorization?.expiresAt)
 
+      let result: PracticeQuestionSummary[] = []
       if (moduleCode === 'all') {
         const isReviewMode = moduleName.includes('错题') || moduleName.includes('复刷')
         if (isReviewMode) {
           const mistakes = await getMyMistakes()
-          setQuestions((mistakes || []).map((m, idx) => ({
+          result = (mistakes || []).map((m, idx) => ({
             id: m.question?.id || m.questionId,
             title: m.question?.title || '未知题目',
             stem: '',
@@ -82,10 +86,10 @@ export default function QuestionBankModulePage() {
             wrongCount: m.wrongCount,
             isMistake: true,
             orderIndex: idx + 1,
-          })))
+          }))
         } else {
           const favorites = await getMyFavorites()
-          setQuestions((favorites || []).map((f, idx) => ({
+          result = (favorites || []).map((f, idx) => ({
             id: f.question?.id || f.questionId,
             title: f.question?.title || '未知题目',
             stem: '',
@@ -97,23 +101,43 @@ export default function QuestionBankModulePage() {
             chapter: f.question?.chapter || '未分类',
             isFavorite: true,
             orderIndex: idx + 1,
-          })))
+          }))
         }
       } else {
-        setQuestions(await getModuleQuestions(moduleCode))
+        result = await getModuleQuestions(moduleCode)
       }
+      setQuestions(result)
+      return result
     } catch {
       setQuestions([])
+      return []
     } finally {
       setIsLoading(false)
     }
   }, [moduleCode, moduleName, setAuthorized])
 
   useEffect(() => {
-    if (licenseStatus?.authorized) loadQuestions()
+    if (licenseStatus?.authorized) loadQuestions().then((list) => {
+      prevDoneRef.current = list.filter((q) => q.completed).length
+    })
   }, [licenseStatus, loadQuestions])
 
-  useDidShow(() => { if (authorized) loadQuestions() })
+  useDidShow(() => {
+    if (authorized) {
+      loadQuestions().then((list) => {
+        const newDone = list.filter((q) => q.completed).length
+        const diff = newDone - prevDoneRef.current
+        if (diff > 0 && prevDoneRef.current > 0) {
+          const newWrong = list.filter((q) => q.wrongCount && q.wrongCount > 0).length
+          const correctInSession = Math.max(0, diff - newWrong)
+          setSummaryData({ count: diff, correct: correctInSession })
+          setShowSummary(true)
+          setTimeout(() => setShowSummary(false), 4000)
+        }
+        prevDoneRef.current = newDone
+      })
+    }
+  })
 
   usePullDownRefresh(async () => {
     await loadQuestions()
@@ -248,7 +272,12 @@ export default function QuestionBankModulePage() {
                           <Text className={styles.chapterBtnText}>练习</Text>
                         </View>
                       )}
-                      {stats.done > 0 && (
+                      {stats.wrong > 0 && filter === 'wrong' && (
+                        <View className={styles.chapterBtn} onTap={(e) => { e.stopPropagation(); goQuestion(filtered[0]?.id) }}>
+                          <Text className={styles.chapterBtnText}>刷错题</Text>
+                        </View>
+                      )}
+                      {stats.done > 0 && filter !== 'wrong' && (
                         <View className={styles.chapterBtn} onTap={(e) => { e.stopPropagation(); handleResetChapter(group.chapter) }}>
                           <Text className={styles.chapterBtnText}>重做</Text>
                         </View>
@@ -292,6 +321,15 @@ export default function QuestionBankModulePage() {
             </View>
           )}
         </>
+      )}
+
+      {showSummary && (
+        <View className={styles.summaryToast}>
+          <Text className={styles.summaryEmoji}>🎉</Text>
+          <Text className={styles.summaryText}>
+            本轮做了 {summaryData.count} 题，答对 {summaryData.correct} 题
+          </Text>
+        </View>
       )}
     </View>
   )

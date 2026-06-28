@@ -179,6 +179,12 @@ export default defineConfig({
       ],
     },
     {
+      path: '/nursing/study-cards',
+      name: '题目带背管理',
+      icon: 'BookOutlined',
+      component: './StudyCards',
+    },
+    {
       path: '/nursing/exams',
       name: '在线模考管理',
       icon: 'FormOutlined',

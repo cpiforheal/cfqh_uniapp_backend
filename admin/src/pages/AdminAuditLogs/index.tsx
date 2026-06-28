@@ -18,7 +18,14 @@ interface AdminAuditLogRow {
 
 function formatDateTime(value?: string | null, fallback = '-') {
   if (!value) return fallback
-  return String(value).replace('T', ' ').slice(0, 16)
+  const date = new Date(value)
+  if (isNaN(date.getTime())) return fallback
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  const h = String(date.getHours()).padStart(2, '0')
+  const min = String(date.getMinutes()).padStart(2, '0')
+  return `${y}-${m}-${d} ${h}:${min}`
 }
 
 function actionTag(action: string) {

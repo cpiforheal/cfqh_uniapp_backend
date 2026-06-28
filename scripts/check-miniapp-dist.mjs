@@ -34,6 +34,14 @@ if (!fs.existsSync(distDir)) {
 
 const files = walk(distDir).filter((file) => file.endsWith('.js'))
 const failures = []
+const hasPrebundleReference = files.some((file) => {
+  const content = fs.readFileSync(file, 'utf8')
+  return content.includes('/prebundle/') || content.includes('"./prebundle/') || content.includes("'./prebundle/")
+})
+
+if (hasPrebundleReference && !fs.existsSync(path.join(distDir, 'prebundle'))) {
+  failures.push('dist references prebundle files, but dist/prebundle/ does not exist')
+}
 
 for (const file of files) {
   const content = fs.readFileSync(file, 'utf8')

@@ -1,13 +1,14 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { ContentStatus, LicenseStatus, Prisma, SubjectCode } from '@prisma/client'
-import { createHmac, randomInt } from 'node:crypto'
+import { createHmac, randomBytes, randomInt } from 'node:crypto'
 import { stringify } from 'node:querystring'
 import { AdminContextService } from '../common/admin-context'
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateDailyPracticeDto } from './dto/create-daily-practice.dto'
 import { NURSING_MODULES, getNursingModule } from './modules'
 import { ParsedQuestionImportItem, previewQuestionImport } from './question-import'
+import { parseStudyCardDoc, ParsedStudyCardImport } from './study-card-import'
 
 type ActivationAttemptSnapshot = {
   id: string
@@ -555,6 +556,11 @@ export class NursingService {
           openId: true,
           nickname: true,
           avatarUrl: true,
+          remark: true,
+          realName: true,
+          className: true,
+          phoneTail: true,
+          wechatId: true,
           createdAt: true,
           loginCount: true,
           lastLoginAt: true,
@@ -635,6 +641,11 @@ export class NursingService {
         openId: user.openId,
         nickname: user.nickname || '微信用户',
         avatarUrl: user.avatarUrl || null,
+        remark: user.remark || null,
+        realName: user.realName || null,
+        className: user.className || null,
+        phoneTail: user.phoneTail || null,
+        wechatId: user.wechatId || null,
         practiceCount: userRecords.length,
         correctRate: userRecords.length > 0 ? Math.round((correct / userRecords.length) * 100) : 0,
         mistakeCount: userMistakes.reduce((sum, mistake) => sum + mistake.wrongCount, 0),
@@ -758,6 +769,14 @@ export class NursingService {
     return updated
   }
 
+  async updateStudentRemark(userId: string, remark: string) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { remark: remark.trim() || null },
+      select: { id: true, remark: true },
+    })
+  }
+
   async adminStudents(keyword?: string) {
     const users = await this.prisma.user.findMany({
       where: keyword
@@ -765,6 +784,10 @@ export class NursingService {
             OR: [
               { openId: { contains: keyword } },
               { nickname: { contains: keyword } },
+              { remark: { contains: keyword } },
+              { realName: { contains: keyword } },
+              { className: { contains: keyword } },
+              { wechatId: { contains: keyword } },
             ],
           }
         : undefined,
@@ -784,6 +807,11 @@ export class NursingService {
       openId: user.openId,
       nickname: user.nickname || '微信用户',
       avatarUrl: user.avatarUrl,
+      remark: user.remark,
+      realName: user.realName,
+      className: user.className,
+      phoneTail: user.phoneTail,
+      wechatId: user.wechatId,
       loginCount: user.loginCount,
       lastLoginAt: user.lastLoginAt,
       lastClientEnv: user.lastClientEnv,
@@ -818,6 +846,10 @@ export class NursingService {
             OR: [
               { openId: { contains: normalizedKeyword } },
               { nickname: { contains: normalizedKeyword } },
+              { remark: { contains: normalizedKeyword } },
+              { realName: { contains: normalizedKeyword } },
+              { className: { contains: normalizedKeyword } },
+              { wechatId: { contains: normalizedKeyword } },
               { lastDevice: { contains: normalizedKeyword } },
             ],
           }
@@ -925,6 +957,11 @@ export class NursingService {
         openId: user.openId,
         nickname: user.nickname || '微信用户',
         avatarUrl: user.avatarUrl,
+        remark: user.remark,
+        realName: user.realName,
+        className: user.className,
+        phoneTail: user.phoneTail,
+        wechatId: user.wechatId,
         loginCount: user.loginCount,
         firstLoginAt: user.createdAt,
         lastLoginAt: user.lastLoginAt,
@@ -1875,7 +1912,7 @@ export class NursingService {
 
   async adminExportStudents() {
     const [users, authorizations, records, mistakes] = await Promise.all([
-      this.prisma.user.findMany({ select: { id: true, openId: true, nickname: true } }),
+      this.prisma.user.findMany({ select: { id: true, openId: true, nickname: true, remark: true, realName: true, className: true, phoneTail: true, wechatId: true } }),
       this.prisma.userAuthorization.findMany({ include: { licenseToken: true } }),
       this.prisma.practiceRecord.findMany({ select: { userId: true, isCorrect: true, createdAt: true } }),
       this.prisma.mistake.findMany({ select: { userId: true, wrongCount: true } }),
@@ -1892,6 +1929,11 @@ export class NursingService {
       return {
         openId: user.openId,
         nickname: user.nickname || '微信用户',
+        realName: user.realName || '',
+        className: user.className || '',
+        phoneTail: user.phoneTail || '',
+        wechatId: user.wechatId || '',
+        remark: user.remark || '',
         practiceCount: userRecords.length,
         correctRate: userRecords.length > 0 ? Math.round((correct / userRecords.length) * 100) : 0,
         mistakeCount: userMistakes.reduce((s, m) => s + m.wrongCount, 0),
@@ -1953,5 +1995,452 @@ export class NursingService {
       orderBy: { createdAt: 'desc' },
       take: Math.min(limit, 200),
     })
+  }
+
+  // ─── 带背 ─────────────────────────────────────────────────────────────────
+
+  async studyCardModules(openId?: string | null) {
+    const modules = await this.prisma.studyCardModule.findMany({
+      where: { status: ContentStatus.published },
+      orderBy: { sort: 'asc' },
+      include: {
+        _count: { select: { questions: true } },
+        questions: { where: { status: ContentStatus.published }, select: { id: true, _count: { select: { knowledgeCards: true } } } },
+      },
+    })
+
+    let masteredByModule = new Map<string, number>()
+    let streak = 0
+    let totalMastered = 0
+
+    if (openId) {
+      const user = await this.prisma.user.findUnique({ where: { openId }, select: { id: true } })
+      if (user) {
+        const allQIds = modules.flatMap((m) => m.questions.map((q) => q.id))
+        const records = await this.prisma.studyCardMastery.findMany({
+          where: { userId: user.id, questionId: { in: allQIds }, mastered: true },
+          select: { questionId: true, updatedAt: true },
+        })
+        const masteredSet = new Set(records.map((r) => r.questionId))
+        totalMastered = masteredSet.size
+        for (const m of modules) {
+          const count = m.questions.filter((q) => masteredSet.has(q.id)).length
+          masteredByModule.set(m.moduleCode, count)
+        }
+        // Compute streak
+        const daySet = new Set(records.map((r) => r.updatedAt.toISOString().slice(0, 10)))
+        const today = new Date()
+        for (let i = 0; i < 365; i++) {
+          const d = new Date(today)
+          d.setDate(today.getDate() - i)
+          if (daySet.has(d.toISOString().slice(0, 10))) streak++
+          else break
+        }
+      }
+    }
+
+    return {
+      modules: modules.map((m) => ({
+        moduleCode: m.moduleCode,
+        moduleName: m.moduleName,
+        sort: m.sort,
+        questionCount: m._count.questions,
+        masteredCount: masteredByModule.get(m.moduleCode) || 0,
+        knowledgeCardCount: m.questions.reduce((sum, q) => sum + q._count.knowledgeCards, 0),
+      })),
+      streak,
+      totalMastered,
+    }
+  }
+
+  private async isStudyCardAuthorized(openId?: string | null): Promise<boolean> {
+    if (!openId) return false
+    const auth = await this.prisma.studyCardAuthorization.findUnique({ where: { openId } })
+    if (!auth) return false
+    return auth.expiresAt > new Date()
+  }
+
+  async studyCardModuleQuestions(moduleCode: string, openId?: string | null) {
+    const module = await this.prisma.studyCardModule.findUnique({ where: { moduleCode } })
+    if (!module) throw new NotFoundException('模块不存在')
+    const questions = await this.prisma.studyCardQuestion.findMany({
+      where: { moduleId: module.id, status: ContentStatus.published },
+      orderBy: { seq: 'asc' },
+      select: { id: true, seq: true, type: true, knowledgeCards: { select: { title: true }, orderBy: { seq: 'asc' } } },
+    })
+    const authorized = await this.isStudyCardAuthorized(openId)
+    return questions.map((q) => ({
+      id: q.id,
+      seq: q.seq,
+      type: q.type,
+      moduleCode,
+      knowledgeCardCount: q.knowledgeCards.length,
+      knowledgeCardTitle: q.knowledgeCards[0]?.title || '',
+      locked: !authorized && q.seq > 5,
+    }))
+  }
+
+  async studyCardQuestionDetail(id: string, openId?: string | null) {
+    const question = await this.prisma.studyCardQuestion.findFirst({
+      where: { id, status: ContentStatus.published },
+      include: {
+        module: { select: { moduleCode: true, moduleName: true } },
+        knowledgeCards: { orderBy: { seq: 'asc' } },
+      },
+    })
+    if (!question) throw new NotFoundException('题目不存在')
+    const authorized = await this.isStudyCardAuthorized(openId)
+    if (!authorized && question.seq > 5) throw new ForbiddenException('该题目需要带背通行码解锁')
+    const options = (() => { try { return JSON.parse(question.optionsJson) } catch { return [] } })()
+    return {
+      id: question.id,
+      moduleCode: question.module.moduleCode,
+      moduleName: question.module.moduleName,
+      seq: question.seq,
+      stem: question.stem,
+      type: question.type,
+      options,
+      answer: question.answer,
+      knowledgeCards: question.knowledgeCards.map((card) => ({
+        title: card.title,
+        body: (() => { try { return JSON.parse(card.bodyJson) } catch { return [] } })(),
+      })),
+    }
+  }
+
+  async previewStudyCardImport(buffer: Buffer) {
+    if (!buffer?.length) throw new BadRequestException('请上传 Word 文档')
+    return parseStudyCardDoc(buffer)
+  }
+
+  async toggleStudyCardMastery(openId: string, questionId: string, mastered: boolean) {
+    const user = await this.prisma.user.findUnique({ where: { openId } })
+    if (!user) throw new NotFoundException('用户不存在')
+    await this.prisma.studyCardMastery.upsert({
+      where: { userId_questionId: { userId: user.id, questionId } },
+      create: { userId: user.id, questionId, mastered },
+      update: { mastered },
+    })
+    return { success: true, mastered }
+  }
+
+  async getModuleMastery(openId: string, moduleCode: string) {
+    const user = await this.prisma.user.findUnique({ where: { openId } })
+    if (!user) return { mastered: [] }
+    const mod = await this.prisma.studyCardModule.findUnique({ where: { moduleCode } })
+    if (!mod) return { mastered: [] }
+    const questions = await this.prisma.studyCardQuestion.findMany({
+      where: { moduleId: mod.id, status: ContentStatus.published },
+      select: { id: true },
+    })
+    const qIds = questions.map((q) => q.id)
+    const records = await this.prisma.studyCardMastery.findMany({
+      where: { userId: user.id, questionId: { in: qIds }, mastered: true },
+      select: { questionId: true },
+    })
+    return { mastered: records.map((r) => r.questionId) }
+  }
+
+  async commitStudyCardImport(data: ParsedStudyCardImport) {
+    if (!data?.modules?.length) throw new BadRequestException('没有可导入的模块')
+    for (const mod of data.modules) {
+      if (!mod.moduleCode || !mod.moduleName) throw new BadRequestException(`模块缺少编码或名称`)
+      for (const q of mod.questions) {
+        if (!q.stem) throw new BadRequestException(`模块「${mod.moduleName}」第 ${q.seq} 题缺少题干`)
+        if (!q.answer) throw new BadRequestException(`模块「${mod.moduleName}」第 ${q.seq} 题缺少答案`)
+        if (!q.options?.length) throw new BadRequestException(`模块「${mod.moduleName}」第 ${q.seq} 题缺少选项`)
+      }
+    }
+    const results: Array<{ moduleCode: string; questions: number; cards: number }> = []
+
+    for (const mod of data.modules) {
+      await this.prisma.$transaction(async (tx) => {
+        const existing = await tx.studyCardModule.findUnique({ where: { moduleCode: mod.moduleCode } })
+        if (existing) {
+          const oldQuestions = await tx.studyCardQuestion.findMany({
+            where: { moduleId: existing.id },
+            select: { id: true },
+          })
+          const oldQIds = oldQuestions.map((q) => q.id)
+          if (oldQIds.length > 0) {
+            await tx.studyCardMastery.deleteMany({ where: { questionId: { in: oldQIds } } })
+          }
+          await tx.studyCardModule.delete({ where: { moduleCode: mod.moduleCode } })
+        }
+        const created = await tx.studyCardModule.create({
+          data: {
+            moduleCode: mod.moduleCode,
+            moduleName: mod.moduleName,
+            sort: mod.sort,
+            status: ContentStatus.published,
+          },
+        })
+        let totalCards = 0
+        for (const q of mod.questions) {
+          const createdQ = await tx.studyCardQuestion.create({
+            data: {
+              moduleId: created.id,
+              seq: q.seq,
+              stem: q.stem,
+              type: q.type as never,
+              optionsJson: JSON.stringify(q.options),
+              answer: q.answer,
+              status: ContentStatus.published,
+            },
+          })
+          for (const card of q.knowledgeCards) {
+            await tx.studyCardKnowledgeCard.create({
+              data: {
+                questionId: createdQ.id,
+                seq: card.seq,
+                title: card.title,
+                bodyJson: JSON.stringify(card.body),
+              },
+            })
+            totalCards++
+          }
+        }
+        results.push({ moduleCode: mod.moduleCode, questions: mod.questions.length, cards: totalCards })
+      })
+    }
+
+    await this.recordAdminAudit('study_card.import', undefined, { modules: results })
+    return { ok: true, modules: results }
+  }
+
+  async adminStudyCardModules() {
+    const modules = await this.prisma.studyCardModule.findMany({
+      orderBy: { sort: 'asc' },
+      include: { _count: { select: { questions: true } } },
+    })
+    return modules.map((m) => ({
+      id: m.id,
+      moduleCode: m.moduleCode,
+      moduleName: m.moduleName,
+      sort: m.sort,
+      status: m.status,
+      questionCount: m._count.questions,
+      createdAt: m.createdAt,
+    }))
+  }
+
+  async deleteAdminStudyCardModule(moduleCode: string) {
+    const module = await this.prisma.studyCardModule.findUnique({ where: { moduleCode } })
+    if (!module) throw new NotFoundException('模块不存在')
+    const questions = await this.prisma.studyCardQuestion.findMany({
+      where: { moduleId: module.id },
+      select: { id: true },
+    })
+    const qIds = questions.map((q) => q.id)
+    if (qIds.length > 0) {
+      await this.prisma.studyCardMastery.deleteMany({ where: { questionId: { in: qIds } } })
+    }
+    await this.prisma.studyCardModule.delete({ where: { moduleCode } })
+    await this.recordAdminAudit('study_card.delete_module', moduleCode, { moduleName: module.moduleName })
+    return { ok: true }
+  }
+
+  private generateStudyCardCode() {
+    const seed = randomBytes(5).toString('hex').slice(0, 8).toUpperCase()
+    return `SC-${seed}`
+  }
+
+  async batchGenerateStudyCardTokens(dto: { count: number; expiresDays?: number; groupTag?: string }) {
+    const count = Math.min(Math.max(dto.count || 1, 1), 100)
+    const expiresDays = Math.max(dto.expiresDays || 30, 1)
+    const expiresAt = new Date(Date.now() + expiresDays * 24 * 60 * 60 * 1000)
+    const tokens: Array<{ code: string; expiresAt: string }> = []
+    for (let i = 0; i < count; i++) {
+      let code: string
+      let retries = 3
+      while (true) {
+        code = this.generateStudyCardCode()
+        const exists = await this.prisma.licenseToken.findFirst({ where: { code } })
+        if (!exists) break
+        if (--retries <= 0) throw new BadRequestException('授权码生成冲突，请重试')
+      }
+      await this.prisma.licenseToken.create({
+        data: { code, subjectScope: SubjectCode.study_card, resourceScope: '带背全章节', status: LicenseStatus.unused, expiresAt, maxBindCount: 1, groupTag: dto.groupTag || null },
+      })
+      tokens.push({ code, expiresAt: expiresAt.toISOString() })
+    }
+    await this.recordAdminAudit('study_card.batch_generate_tokens', undefined, { count, expiresDays, groupTag: dto.groupTag || null })
+    return tokens
+  }
+
+  async queryStudyCardTokens(keyword?: string) {
+    const where: any = { subjectScope: SubjectCode.study_card }
+    if (keyword) where.code = { contains: keyword.toUpperCase() }
+    const tokens = await this.prisma.licenseToken.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    })
+    return tokens.map((t) => ({
+      id: t.id,
+      code: t.code,
+      status: t.status,
+      boundOpenId: t.boundOpenId,
+      expiresAt: t.expiresAt?.toISOString(),
+      groupTag: t.groupTag,
+      createdAt: t.createdAt.toISOString(),
+    }))
+  }
+
+  async disableStudyCardToken(id: string) {
+    const token = await this.prisma.licenseToken.findUnique({ where: { id } })
+    if (!token || token.subjectScope !== SubjectCode.study_card) throw new NotFoundException('授权码不存在')
+    await this.prisma.licenseToken.update({ where: { id }, data: { status: LicenseStatus.disabled } })
+    await this.recordAdminAudit('study_card.disable_token', token.code)
+    return { ok: true }
+  }
+
+  async extendStudyCardToken(id: string, days: number) {
+    const token = await this.prisma.licenseToken.findUnique({ where: { id } })
+    if (!token || token.subjectScope !== SubjectCode.study_card) throw new NotFoundException('授权码不存在')
+    const base = token.expiresAt && token.expiresAt > new Date() ? token.expiresAt : new Date()
+    const newExpires = new Date(base.getTime() + Math.max(days, 1) * 24 * 60 * 60 * 1000)
+    await this.prisma.licenseToken.update({ where: { id }, data: { expiresAt: newExpires } })
+    if (token.boundOpenId) {
+      await this.prisma.studyCardAuthorization.updateMany({ where: { tokenId: id }, data: { expiresAt: newExpires } })
+    }
+    await this.recordAdminAudit('study_card.extend_token', token.code, { days, newExpires: newExpires.toISOString() })
+    return { ok: true, expiresAt: newExpires.toISOString() }
+  }
+
+  async createAdminStudyCardModule(data: { moduleCode: string; moduleName: string; sort?: number; status?: string }) {
+    const existing = await this.prisma.studyCardModule.findUnique({ where: { moduleCode: data.moduleCode } })
+    if (existing) throw new BadRequestException('moduleCode 已存在')
+    const module = await this.prisma.studyCardModule.create({
+      data: {
+        moduleCode: data.moduleCode,
+        moduleName: data.moduleName,
+        sort: data.sort ?? 1,
+        status: (data.status as ContentStatus) || ContentStatus.published,
+      },
+    })
+    await this.recordAdminAudit('study_card.create_module', data.moduleCode, { moduleName: data.moduleName })
+    return module
+  }
+
+  async updateAdminStudyCardModule(moduleCode: string, data: { moduleName?: string; sort?: number; status?: string }) {
+    const module = await this.prisma.studyCardModule.findUnique({ where: { moduleCode } })
+    if (!module) throw new NotFoundException('模块不存在')
+    const updated = await this.prisma.studyCardModule.update({
+      where: { moduleCode },
+      data: {
+        ...(data.moduleName !== undefined && { moduleName: data.moduleName }),
+        ...(data.sort !== undefined && { sort: data.sort }),
+        ...(data.status !== undefined && { status: data.status as ContentStatus }),
+      },
+    })
+    await this.recordAdminAudit('study_card.update_module', moduleCode, data)
+    return updated
+  }
+
+  async adminModuleQuestions(moduleCode: string) {
+    const module = await this.prisma.studyCardModule.findUnique({ where: { moduleCode } })
+    if (!module) throw new NotFoundException('模块不存在')
+    const questions = await this.prisma.studyCardQuestion.findMany({
+      where: { moduleId: module.id },
+      orderBy: { seq: 'asc' },
+      include: { knowledgeCards: { orderBy: { seq: 'asc' } } },
+    })
+    return questions.map((q) => ({
+      ...this.serializeQuestion(q),
+      knowledgeCards: q.knowledgeCards.map((c) => ({
+        id: c.id,
+        seq: c.seq,
+        title: c.title,
+        body: this.parseOptions(c.bodyJson),
+      })),
+    }))
+  }
+
+  async createAdminStudyCardQuestion(moduleCode: string, data: { seq?: number; stem: string; type?: string; options: { key: string; text: string }[]; answer: string }) {
+    const module = await this.prisma.studyCardModule.findUnique({ where: { moduleCode } })
+    if (!module) throw new NotFoundException('模块不存在')
+    if (!data.stem || !data.answer) throw new BadRequestException('题干和答案不能为空')
+    const maxSeq = await this.prisma.studyCardQuestion.findFirst({
+      where: { moduleId: module.id },
+      orderBy: { seq: 'desc' },
+      select: { seq: true },
+    })
+    const question = await this.prisma.studyCardQuestion.create({
+      data: {
+        moduleId: module.id,
+        seq: data.seq ?? (maxSeq?.seq ?? 0) + 1,
+        stem: data.stem,
+        type: (data.type as any) || 'single_choice',
+        optionsJson: JSON.stringify(data.options || []),
+        answer: data.answer,
+        status: ContentStatus.published,
+      },
+    })
+    return this.serializeQuestion(question)
+  }
+
+  async updateAdminStudyCardQuestion(id: string, data: { seq?: number; stem?: string; type?: string; options?: { key: string; text: string }[]; answer?: string; status?: string }) {
+    const question = await this.prisma.studyCardQuestion.findUnique({ where: { id } })
+    if (!question) throw new NotFoundException('题目不存在')
+    const updated = await this.prisma.studyCardQuestion.update({
+      where: { id },
+      data: {
+        ...(data.seq !== undefined && { seq: data.seq }),
+        ...(data.stem !== undefined && { stem: data.stem }),
+        ...(data.type !== undefined && { type: data.type as any }),
+        ...(data.options !== undefined && { optionsJson: JSON.stringify(data.options) }),
+        ...(data.answer !== undefined && { answer: data.answer }),
+        ...(data.status !== undefined && { status: data.status as ContentStatus }),
+      },
+    })
+    return this.serializeQuestion(updated)
+  }
+
+  async deleteAdminStudyCardQuestion(id: string) {
+    const question = await this.prisma.studyCardQuestion.findUnique({ where: { id } })
+    if (!question) throw new NotFoundException('题目不存在')
+    await this.prisma.studyCardMastery.deleteMany({ where: { questionId: id } })
+    await this.prisma.studyCardQuestion.delete({ where: { id } })
+    return { ok: true }
+  }
+
+  async createAdminKnowledgeCard(questionId: string, data: { title: string; body: unknown[] }) {
+    const question = await this.prisma.studyCardQuestion.findUnique({ where: { id: questionId } })
+    if (!question) throw new NotFoundException('题目不存在')
+    const maxSeq = await this.prisma.studyCardKnowledgeCard.findFirst({
+      where: { questionId },
+      orderBy: { seq: 'desc' },
+      select: { seq: true },
+    })
+    const card = await this.prisma.studyCardKnowledgeCard.create({
+      data: {
+        questionId,
+        seq: (maxSeq?.seq ?? 0) + 1,
+        title: data.title,
+        bodyJson: JSON.stringify(data.body || []),
+      },
+    })
+    return { id: card.id, seq: card.seq, title: card.title, body: data.body }
+  }
+
+  async updateAdminKnowledgeCard(id: string, data: { title?: string; body?: unknown[] }) {
+    const card = await this.prisma.studyCardKnowledgeCard.findUnique({ where: { id } })
+    if (!card) throw new NotFoundException('知识卡片不存在')
+    const updated = await this.prisma.studyCardKnowledgeCard.update({
+      where: { id },
+      data: {
+        ...(data.title !== undefined && { title: data.title }),
+        ...(data.body !== undefined && { bodyJson: JSON.stringify(data.body) }),
+      },
+    })
+    return { id: updated.id, seq: updated.seq, title: updated.title, body: data.body ?? JSON.parse(card.bodyJson) }
+  }
+
+  async deleteAdminKnowledgeCard(id: string) {
+    const card = await this.prisma.studyCardKnowledgeCard.findUnique({ where: { id } })
+    if (!card) throw new NotFoundException('知识卡片不存在')
+    await this.prisma.studyCardKnowledgeCard.delete({ where: { id } })
+    return { ok: true }
   }
 }

@@ -20,7 +20,7 @@ const queryClient = new QueryClient({
 function App({ children }: PropsWithChildren) {
   useEffect(() => {
     try {
-      if (IS_WEAPP && Taro.cloud) {
+      if (IS_WEAPP && MINIAPP_ENV.useCloudGateway && Taro.cloud) {
         Taro.cloud.init({
           ...(MINIAPP_ENV.cloudEnvId ? { env: MINIAPP_ENV.cloudEnvId } : {}),
           traceUser: true,
@@ -41,7 +41,13 @@ function App({ children }: PropsWithChildren) {
           if (code) current.setAuthorized(code, result.authorization?.expiresAt)
           return
         }
-        if (current.status === 'authorized' && result && !result.authorized && result.reason !== 'request_failed') {
+        if (
+          current.status === 'authorized' &&
+          result &&
+          !result.authorized &&
+          result.reason !== 'request_failed' &&
+          !MINIAPP_ENV.skipWechatLogin
+        ) {
           current.logout()
           if (result.reason === 'expired') {
             Taro.reLaunch({ url: '/pages/activate/index' })

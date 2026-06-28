@@ -1,8 +1,8 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Query, Req, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common'
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UploadedFile, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { FileFieldsInterceptor } from '@nestjs/platform-express'
+import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express'
 import type { Request } from 'express'
-import { resolveCurrentOpenId } from '../common/current-user'
+import { requireCurrentOpenId, resolveCurrentOpenId } from '../common/current-user'
 import { AdminGuard } from '../common/guards/admin.guard'
 import { LicenseGuard } from '../common/guards/license.guard'
 import { CreateDailyPracticeDto } from './dto/create-daily-practice.dto'
@@ -127,6 +127,12 @@ export class NursingController {
   @Get('admin/students')
   adminStudents(@Query('keyword') keyword?: string) {
     return this.nursingService.adminStudents(keyword)
+  }
+
+  @UseGuards(AdminGuard)
+  @Post('admin/students/:id/remark')
+  updateStudentRemark(@Param('id') id: string, @Body() dto: { remark: string }) {
+    return this.nursingService.updateStudentRemark(id, dto.remark)
   }
 
   @UseGuards(AdminGuard)
@@ -323,5 +329,141 @@ export class NursingController {
   @Get('admin/audit-logs')
   adminAuditLogs(@Query('limit') limit?: string) {
     return this.nursingService.adminAuditLogs(Number(limit) || 50)
+  }
+
+  // ─── 带背路由 ─────────────────────────────────────────────────────────────
+
+  @Get('study-cards/modules')
+  studyCardModules(@Req() req: Request) {
+    const openId = resolveCurrentOpenId(req, this.configService)
+    return this.nursingService.studyCardModules(openId)
+  }
+
+  @Get('study-cards/modules/:code/questions')
+  studyCardModuleQuestions(@Req() req: Request, @Param('code') code: string) {
+    const openId = resolveCurrentOpenId(req, this.configService)
+    return this.nursingService.studyCardModuleQuestions(code, openId)
+  }
+
+  @Get('study-cards/questions/:id')
+  studyCardQuestionDetail(@Req() req: Request, @Param('id') id: string) {
+    const openId = resolveCurrentOpenId(req, this.configService)
+    return this.nursingService.studyCardQuestionDetail(id, openId)
+  }
+
+  @Post('study-cards/questions/:id/mastery')
+  toggleStudyCardMastery(@Req() req: Request, @Param('id') id: string, @Body('mastered') mastered: boolean) {
+    const openId = requireCurrentOpenId(req, this.configService)
+    return this.nursingService.toggleStudyCardMastery(openId, id, mastered)
+  }
+
+  @Get('study-cards/modules/:code/mastery')
+  getModuleMastery(@Req() req: Request, @Param('code') code: string) {
+    const openId = requireCurrentOpenId(req, this.configService)
+    return this.nursingService.getModuleMastery(openId, code)
+  }
+
+  @UseGuards(AdminGuard)
+  @Get('admin/study-cards/modules')
+  adminStudyCardModules() {
+    return this.nursingService.adminStudyCardModules()
+  }
+
+  @UseGuards(AdminGuard)
+  @Delete('admin/study-cards/modules/:code')
+  deleteAdminStudyCardModule(@Param('code') code: string) {
+    return this.nursingService.deleteAdminStudyCardModule(code)
+  }
+
+  @UseGuards(AdminGuard)
+  @Post('admin/study-cards/preview')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 30 * 1024 * 1024 } }))
+  previewStudyCardImport(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('请上传 Word 文档')
+    return this.nursingService.previewStudyCardImport(file.buffer)
+  }
+
+  @UseGuards(AdminGuard)
+  @Post('admin/study-cards/import')
+  commitStudyCardImport(@Body() dto: Record<string, unknown>) {
+    return this.nursingService.commitStudyCardImport(dto as any)
+  }
+
+  @UseGuards(AdminGuard)
+  @Post('admin/study-cards/modules')
+  createAdminStudyCardModule(@Body() dto: { moduleCode: string; moduleName: string; sort?: number; status?: string }) {
+    return this.nursingService.createAdminStudyCardModule(dto)
+  }
+
+  @UseGuards(AdminGuard)
+  @Put('admin/study-cards/modules/:code')
+  updateAdminStudyCardModule(@Param('code') code: string, @Body() dto: { moduleName?: string; sort?: number; status?: string }) {
+    return this.nursingService.updateAdminStudyCardModule(code, dto)
+  }
+
+  @UseGuards(AdminGuard)
+  @Get('admin/study-cards/modules/:code/questions')
+  adminModuleQuestions(@Param('code') code: string) {
+    return this.nursingService.adminModuleQuestions(code)
+  }
+
+  @UseGuards(AdminGuard)
+  @Post('admin/study-cards/modules/:code/questions')
+  createAdminStudyCardQuestion(@Param('code') code: string, @Body() dto: { seq?: number; stem: string; type?: string; options: { key: string; text: string }[]; answer: string }) {
+    return this.nursingService.createAdminStudyCardQuestion(code, dto)
+  }
+
+  @UseGuards(AdminGuard)
+  @Put('admin/study-cards/questions/:id')
+  updateAdminStudyCardQuestion(@Param('id') id: string, @Body() dto: { seq?: number; stem?: string; type?: string; options?: { key: string; text: string }[]; answer?: string; status?: string }) {
+    return this.nursingService.updateAdminStudyCardQuestion(id, dto)
+  }
+
+  @UseGuards(AdminGuard)
+  @Delete('admin/study-cards/questions/:id')
+  deleteAdminStudyCardQuestion(@Param('id') id: string) {
+    return this.nursingService.deleteAdminStudyCardQuestion(id)
+  }
+
+  @UseGuards(AdminGuard)
+  @Post('admin/study-cards/questions/:id/knowledge-cards')
+  createAdminKnowledgeCard(@Param('id') id: string, @Body() dto: { title: string; body: unknown[] }) {
+    return this.nursingService.createAdminKnowledgeCard(id, dto)
+  }
+
+  @UseGuards(AdminGuard)
+  @Put('admin/study-cards/knowledge-cards/:id')
+  updateAdminKnowledgeCard(@Param('id') id: string, @Body() dto: { title?: string; body?: unknown[] }) {
+    return this.nursingService.updateAdminKnowledgeCard(id, dto)
+  }
+
+  @UseGuards(AdminGuard)
+  @Delete('admin/study-cards/knowledge-cards/:id')
+  deleteAdminKnowledgeCard(@Param('id') id: string) {
+    return this.nursingService.deleteAdminKnowledgeCard(id)
+  }
+
+  @UseGuards(AdminGuard)
+  @Post('admin/study-cards/license-tokens/batch-generate')
+  batchGenerateStudyCardTokens(@Body() dto: { count: number; expiresDays?: number; groupTag?: string }) {
+    return this.nursingService.batchGenerateStudyCardTokens(dto)
+  }
+
+  @UseGuards(AdminGuard)
+  @Get('admin/study-cards/license-tokens')
+  queryStudyCardTokens(@Query('keyword') keyword?: string) {
+    return this.nursingService.queryStudyCardTokens(keyword)
+  }
+
+  @UseGuards(AdminGuard)
+  @Post('admin/study-cards/license-tokens/:id/disable')
+  disableStudyCardToken(@Param('id') id: string) {
+    return this.nursingService.disableStudyCardToken(id)
+  }
+
+  @UseGuards(AdminGuard)
+  @Post('admin/study-cards/license-tokens/:id/extend')
+  extendStudyCardToken(@Param('id') id: string, @Body('days') days: number) {
+    return this.nursingService.extendStudyCardToken(id, days)
   }
 }

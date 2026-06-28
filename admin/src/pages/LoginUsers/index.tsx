@@ -1,16 +1,23 @@
 import { ReloadOutlined } from '@ant-design/icons'
 import { ProColumns, ProTable, StatisticCard } from '@ant-design/pro-components'
-import { Avatar, Button, Col, Empty, Input, Row, Space, Tag, Typography, message } from 'antd'
+import { Button, Col, Empty, Input, Row, Select, Space, Tag, Typography, message } from 'antd'
 import { useMemo, useRef, useState } from 'react'
 import type { ActionType } from '@ant-design/pro-components'
 import { SubjectAwarePageContainer } from '@/components/SubjectAwarePageContainer'
 import { describeAdminFetchError } from '@/services/adminApi'
-import { queryAdminLoginUsers } from '@/services/adminNursing'
+import { queryAdminLoginUsers, updateStudentRemark } from '@/services/adminNursing'
 import type { AdminLoginUserRow } from '@/types/content'
 
 function formatDateTime(value?: string | null, fallback = '-') {
   if (!value) return fallback
-  return String(value).replace('T', ' ').slice(0, 16)
+  const date = new Date(value)
+  if (isNaN(date.getTime())) return fallback
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  const h = String(date.getHours()).padStart(2, '0')
+  const min = String(date.getMinutes()).padStart(2, '0')
+  return `${y}-${m}-${d} ${h}:${min}`
 }
 
 function licenseStatusTag(status?: string | null) {
@@ -51,6 +58,7 @@ function riskTag(riskLevel?: string | null, riskReason?: string | null) {
 export default function LoginUsersPage() {
   const actionRef = useRef<ActionType>()
   const [keyword, setKeyword] = useState('')
+  const [syncFilter, setSyncFilter] = useState<string>('all')
   const [latestRows, setLatestRows] = useState<AdminLoginUserRow[]>([])
 
   const summary = useMemo(() => {
@@ -66,16 +74,36 @@ export default function LoginUsersPage() {
 
   const columns: ProColumns<AdminLoginUserRow>[] = [
     {
-      title: '微信账号',
-      dataIndex: 'nickname',
+      title: '学员信息',
+      dataIndex: 'realName',
       render: (_, record) => (
-        <Space>
-          <Avatar src={record.avatarUrl || undefined}>{(record.nickname || '微').slice(0, 1)}</Avatar>
-          <Space direction="vertical" size={0}>
-            <Typography.Text strong>{record.nickname || '微信用户'}</Typography.Text>
-            <Typography.Text type="secondary" copyable={{ text: record.openId }}>{record.openId}</Typography.Text>
-          </Space>
+        <Space direction="vertical" size={2}>
+          <Typography.Text strong>{record.realName || <Typography.Text type="secondary">未填写</Typography.Text>}</Typography.Text>
+          {record.className && <Typography.Text type="secondary" style={{ fontSize: 12 }}>{record.className}</Typography.Text>}
+          {record.wechatId && <Typography.Text type="secondary" style={{ fontSize: 12 }}>微信：{record.wechatId}</Typography.Text>}
+          <Typography.Text type="secondary" copyable={{ text: record.openId }} style={{ fontSize: 11, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}>{record.openId.slice(0, 10)}...</Typography.Text>
         </Space>
+      ),
+    },
+    {
+      title: '备注',
+      dataIndex: 'remark',
+      width: 150,
+      search: false,
+      render: (_, record) => (
+        <Typography.Text
+          editable={{
+            onChange: async (value) => {
+              try {
+                await updateStudentRemark(record.userId, value)
+                message.success('备注已更新')
+                actionRef.current?.reload()
+              } catch { message.error('更新失败') }
+            },
+          }}
+        >
+          {record.remark || ''}
+        </Typography.Text>
       ),
     },
     { title: '登录次数', dataIndex: 'loginCount', width: 90, search: false },
@@ -151,7 +179,9 @@ export default function LoginUsersPage() {
         columns={columns}
         request={async () => {
           try {
-            const rows = await queryAdminLoginUsers(keyword.trim())
+            let rows = await queryAdminLoginUsers(keyword.trim())
+            if (syncFilter === 'unsynced') rows = rows.filter((r) => !r.realName)
+            else if (syncFilter === 'synced') rows = rows.filter((r) => !!r.realName)
             setLatestRows(rows)
             return { data: rows, success: true }
           } catch (error) {
@@ -166,12 +196,23 @@ export default function LoginUsersPage() {
         locale={{ emptyText: <Empty description="暂无小程序登录记录" /> }}
         headerTitle="访问用户"
         toolBarRender={() => [
+          <Select
+            key="sync"
+            value={syncFilter}
+            onChange={(v) => { setSyncFilter(v); setTimeout(() => actionRef.current?.reload(), 0) }}
+            style={{ width: 130 }}
+            options={[
+              { label: '资料: 全部', value: 'all' },
+              { label: '未完善', value: 'unsynced' },
+              { label: '已完善', value: 'synced' },
+            ]}
+          />,
           <Input
             key="keyword"
             allowClear
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
-            placeholder="搜索 openId / 昵称 / 设备"
+            placeholder="搜索姓名 / 班级 / 微信号 / 备注 / openId"
             style={{ width: 280 }}
           />,
           <Button key="reload" icon={<ReloadOutlined />} onClick={() => actionRef.current?.reload()}>查询</Button>,

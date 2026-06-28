@@ -1,8 +1,8 @@
-import { Image, Input, Text, View } from '@tarojs/components'
+import { Input, Text, View } from '@tarojs/components'
 import Taro, { useDidShow, usePullDownRefresh } from '@tarojs/taro'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { activateLicense, getProfileOverview, isAuthorized, loginWithWechatProfile } from '@/services/nursing'
+import { activateLicense, getProfileOverview, isAuthorized } from '@/services/nursing'
 import { useAuthStore } from '@/stores/auth'
 import { cx } from '@/utils/classNames'
 import styles from './index.module.scss'
@@ -54,7 +54,6 @@ export default function ProfilePage() {
   const [newCode, setNewCode] = useState('')
   const [replaceSubmitting, setReplaceSubmitting] = useState(false)
   const [replaceError, setReplaceError] = useState('')
-  const [loginSubmitting, setLoginSubmitting] = useState(false)
 
   const { data, refetch, isRefetching } = useQuery({
     queryKey: ['profileOverview'],
@@ -90,6 +89,12 @@ export default function ProfilePage() {
   const authorized = isAuthorized(displayAuthorization)
   const tokenCode = authorized ? displayAuthorization?.tokenCode || tokenCodeFromStore : ''
   const scopeText = displayAuthorization?.resourceScopeText || '医护题库、解析、案例材料、公开讲解'
+  const displayName = data?.realName || data?.nickname || '医护同学'
+  const profileMetaItems = [
+    data?.className,
+    data?.wechatId ? `微信：${data.wechatId}` : '',
+    data?.phoneTail ? `尾号：${data.phoneTail}` : '',
+  ].filter(Boolean)
 
   async function handleCopy() {
     if (!tokenCode) {
@@ -154,17 +159,7 @@ export default function ProfilePage() {
   }
 
   async function handleWechatProfileLogin() {
-    if (loginSubmitting) return
-    setLoginSubmitting(true)
-    try {
-      const result = await loginWithWechatProfile()
-      Taro.showToast({ title: result.cancelled ? '已保持当前账号' : '已同步微信账号', icon: result.cancelled ? 'none' : 'success' })
-      refetch()
-    } catch {
-      Taro.showToast({ title: '同步失败，请检查网络', icon: 'none' })
-    } finally {
-      setLoginSubmitting(false)
-    }
+    Taro.navigateTo({ url: '/pages/sync-profile/index' })
   }
 
   return (
@@ -173,24 +168,23 @@ export default function ProfilePage() {
       <View className={styles.decoBlob2} />
       <View className={styles.topBar}>
         <View className={styles.avatar}>
-          {data?.avatarUrl ? (
-            <Image className={styles.avatarImage} src={data.avatarUrl} mode="aspectFill" />
-          ) : (
-            <Text className={styles.avatarText}>{data?.avatarText || '护'}</Text>
-          )}
+          <Text className={styles.avatarText}>{data?.avatarText || displayName.slice(0, 1)}</Text>
         </View>
         <View className={styles.userInfo}>
-          <Text className={styles.nickname}>{data?.nickname || '医护同学'}</Text>
+          <Text className={styles.nickname}>{displayName}</Text>
+          {profileMetaItems.length > 0 && (
+            <Text className={styles.profileMeta}>{profileMetaItems.join(' · ')}</Text>
+          )}
           <View className={cx(styles.statusPill, styles[`pill_${status.tone}`])}>
             <View className={styles.statusDot} />
             <Text className={styles.statusText}>{status.text}</Text>
           </View>
         </View>
         <View
-          className={cx(styles.authBtn, loginSubmitting && styles.authBtnDisabled)}
+          className={styles.authBtn}
           onTap={handleWechatProfileLogin}
         >
-          <Text className={styles.authBtnText}>{loginSubmitting ? '同步中' : data?.avatarUrl ? '已授权' : '微信授权'}</Text>
+          <Text className={styles.authBtnText}>{data?.realName ? '编辑资料' : '完善资料'}</Text>
         </View>
       </View>
 

@@ -2,6 +2,117 @@ const { PrismaClient } = require('@prisma/client')
 
 const prisma = new PrismaClient()
 
+const localDevUsers = [
+  {
+    openId: 'local-weapp-debug-openid',
+    nursingCode: 'NUR-LOCAL-WEAPP',
+    studyCardCode: 'SC-LOCAL-WEAPP',
+  },
+  {
+    openId: 'dev-open-id-local',
+    nursingCode: 'NUR-LOCAL-API',
+    studyCardCode: 'SC-LOCAL-API',
+  },
+]
+
+async function seedLocalDevAuthorization() {
+  const studyCardExpiresAt = new Date('2099-12-31T23:59:59.000Z')
+
+  for (const item of localDevUsers) {
+    const user = await prisma.user.upsert({
+      where: { openId: item.openId },
+      update: {},
+      create: {
+        openId: item.openId,
+        nickname: '本地调试用户',
+        loginCount: 0,
+        lastLoginAt: new Date(),
+        lastClientEnv: 'miniapp',
+      },
+    })
+
+    const nursingToken = await prisma.licenseToken.upsert({
+      where: { code: item.nursingCode },
+      update: {
+        status: 'bound',
+        subjectScope: 'nursing',
+        resourceScope: 'all',
+        boundUserId: user.id,
+        boundOpenId: item.openId,
+        boundAt: new Date(),
+        expiresAt: null,
+      },
+      create: {
+        code: item.nursingCode,
+        status: 'bound',
+        subjectScope: 'nursing',
+        resourceScope: 'all',
+        maxBindCount: 1,
+        groupTag: 'local-dev',
+        boundUserId: user.id,
+        boundOpenId: item.openId,
+        boundAt: new Date(),
+      },
+    })
+
+    await prisma.userAuthorization.upsert({
+      where: { userId: user.id },
+      update: {
+        licenseTokenId: nursingToken.id,
+        subjectScope: 'nursing',
+        resourceScope: 'all',
+        expiresAt: null,
+      },
+      create: {
+        userId: user.id,
+        licenseTokenId: nursingToken.id,
+        subjectScope: 'nursing',
+        resourceScope: 'all',
+      },
+    })
+
+    const studyCardToken = await prisma.licenseToken.upsert({
+      where: { code: item.studyCardCode },
+      update: {
+        status: 'bound',
+        subjectScope: 'study_card',
+        resourceScope: 'all',
+        boundUserId: user.id,
+        boundOpenId: item.openId,
+        boundAt: new Date(),
+        expiresAt: studyCardExpiresAt,
+      },
+      create: {
+        code: item.studyCardCode,
+        status: 'bound',
+        subjectScope: 'study_card',
+        resourceScope: 'all',
+        maxBindCount: 1,
+        groupTag: 'local-dev',
+        boundUserId: user.id,
+        boundOpenId: item.openId,
+        boundAt: new Date(),
+        expiresAt: studyCardExpiresAt,
+      },
+    })
+
+    await prisma.studyCardAuthorization.upsert({
+      where: { userId: user.id },
+      update: {
+        openId: item.openId,
+        tokenId: studyCardToken.id,
+        expiresAt: studyCardExpiresAt,
+      },
+      create: {
+        userId: user.id,
+        openId: item.openId,
+        tokenId: studyCardToken.id,
+        expiresAt: studyCardExpiresAt,
+      },
+    })
+  }
+}
+
 async function main() {
   await prisma.licenseToken.upsert({
     where: { code: 'NURSING-DEMO-001' },
@@ -190,6 +301,8 @@ async function main() {
       status: 'published',
     },
   })
+
+  await seedLocalDevAuthorization()
 
   console.log('Seed completed')
 }

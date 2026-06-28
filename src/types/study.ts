@@ -202,6 +202,10 @@ export interface ProfileOverview {
   nickname: string
   avatarText: string
   avatarUrl?: string
+  realName?: string | null
+  className?: string | null
+  phoneTail?: string | null
+  wechatId?: string | null
   authorization: AuthorizationInfo
   practiceCount: number
   mistakeCount: number

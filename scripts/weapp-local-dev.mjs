@@ -1,4 +1,6 @@
 import { spawn } from 'node:child_process'
+import http from 'node:http'
+import https from 'node:https'
 import os from 'node:os'
 
 function getLanIp() {
@@ -31,9 +33,32 @@ const fallbackBases = process.env.TARO_APP_API_FALLBACK_BASES || [`http://127.0.
 const devOpenId = process.env.TARO_APP_DEV_OPEN_ID || 'local-weapp-debug-openid'
 const skipWechatLogin = process.env.TARO_APP_SKIP_WECHAT_LOGIN || (target === 'devtools' ? 'true' : 'false')
 
+function checkApi(url) {
+  return new Promise((resolve) => {
+    const client = url.startsWith('https:') ? https : http
+    const request = client.get(url, { timeout: 2500 }, (response) => {
+      response.resume()
+      resolve(response.statusCode >= 200 && response.statusCode < 500)
+    })
+    request.on('timeout', () => {
+      request.destroy()
+      resolve(false)
+    })
+    request.on('error', () => resolve(false))
+  })
+}
+
+const apiHealthUrl = `${apiBase.replace(/\/+$/, '')}/license/status?openId=${encodeURIComponent(devOpenId)}`
+const apiReachable = await checkApi(apiHealthUrl)
+if (!apiReachable) {
+  console.warn(`[cfqh] Local API is not reachable: ${apiBase}`)
+  console.warn('[cfqh] Start it in another terminal with: pnpm run dev:api')
+  console.warn('[cfqh] Without the API, local weapp will show locked/empty data because mock fallback is disabled.')
+}
+
 const child = spawn(
   'pnpm',
-  ['exec', 'taro', 'build', '--type', 'weapp', ...process.argv.slice(2)],
+  ['exec', 'taro', 'build', '--type', 'weapp', '--no-check', ...process.argv.slice(2)],
   {
     stdio: 'inherit',
     env: {

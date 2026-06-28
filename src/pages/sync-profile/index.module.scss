@@ -1,0 +1,128 @@
+@use '../../styles/theme.scss' as *;
+
+.page {
+  min-height: 100vh;
+  padding: 72px 32px 60px;
+  background: $color-bg-page;
+  box-sizing: border-box;
+}
+
+.hero {
+  padding-top: 12px;
+}
+
+.brandBadge {
+  display: inline-flex;
+  align-items: center;
+}
+
+.brandText {
+  color: $color-primary;
+  font-size: $font-hint;
+  font-weight: 800;
+}
+
+.title {
+  display: block;
+  margin-top: 28px;
+  color: $color-text-primary;
+  font-size: $font-heading;
+  font-weight: 800;
+  line-height: 1.42;
+}
+
+.desc {
+  display: block;
+  margin-top: 18px;
+  color: $color-text-muted;
+  font-size: $font-body;
+  line-height: 1.7;
+}
+
+.formCard {
+  margin-top: 44px;
+  padding: 34px 30px 30px;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: #ffffff;
+  box-shadow: $shadow-float;
+}
+
+.field {
+  margin-bottom: 28px;
+}
+
+.label {
+  display: block;
+  margin-bottom: 12px;
+  color: $color-text-regular;
+  font-size: $font-body;
+  font-weight: 800;
+}
+
+.required {
+  color: $color-danger;
+}
+
+.inputWrap {
+  display: flex;
+  align-items: center;
+  height: 88px;
+  padding: 0 24px;
+  border: 2px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-bg-subtle;
+}
+
+.inputWrap:focus-within {
+  border-color: $color-primary;
+  background: #ffffff;
+}
+
+.input {
+  flex: 1;
+  color: $color-text-primary;
+  font-size: $font-title;
+  font-weight: 500;
+}
+
+.placeholder {
+  color: $color-text-placeholder;
+  font-size: $font-body;
+  font-weight: 400;
+}
+
+.button {
+  height: 96px;
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-lg;
+  background: $color-primary;
+  box-shadow: $shadow-primary;
+  color: #ffffff;
+  font-size: 32px;
+  font-weight: 800;
+}
+
+.button:active {
+  opacity: 0.85;
+}
+
+.buttonDisabled {
+  background: #c9d7d8;
+  box-shadow: none;
+}
+
+.skip {
+  display: block;
+  margin-top: 28px;
+  text-align: center;
+  color: $color-text-muted;
+  font-size: $font-body;
+}
+
+.skip:active {
+  color: $color-primary;
+}

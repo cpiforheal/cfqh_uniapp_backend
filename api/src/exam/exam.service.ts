@@ -10,6 +10,34 @@ export class ExamService {
 
   // ─── Admin ──────────────────────────────────────────────────────────────────
 
+  private parseOptionsJson(optionsJson?: string | null) {
+    const raw = optionsJson?.trim()
+    if (!raw) return []
+    try {
+      const options = JSON.parse(raw)
+      if (!Array.isArray(options)) throw new Error('optionsJson must be an array')
+      return options
+    } catch {
+      throw new BadRequestException('选项 JSON 格式错误，请检查逗号、括号和引号')
+    }
+  }
+
+  private validateExamQuestion(question: { seq: number; answer?: string | null; isObjective?: boolean; optionsJson?: string | null }) {
+    const issues: string[] = []
+    if (!question.answer?.trim()) {
+      issues.push(`第${question.seq}题缺少答案`)
+    }
+    if (question.isObjective ?? true) {
+      try {
+        const options = this.parseOptionsJson(question.optionsJson)
+        if (options.length < 2) issues.push(`第${question.seq}题选项不足`)
+      } catch {
+        issues.push(`第${question.seq}题选项 JSON 格式错误`)
+      }
+    }
+    return issues
+  }
+
   async createExam(dto: CreateExamDto) {
     return this.prisma.exam.create({
       data: {
@@ -66,6 +94,7 @@ export class ExamService {
     const exam = await this.prisma.exam.findUnique({ where: { id: examId } })
     if (!exam) throw new NotFoundException('考试不存在')
     if (exam.status !== ExamStatus.draft) throw new BadRequestException('考试已开放，不能修改题目')
+    this.parseOptionsJson(dto.optionsJson)
     return this.prisma.examQuestion.create({
       data: {
         examId,
@@ -86,13 +115,15 @@ export class ExamService {
     if (!exam || exam.status !== ExamStatus.draft) throw new BadRequestException('考试已开放，不能修改题目')
     const q = await this.prisma.examQuestion.findFirst({ where: { id: questionId, examId } })
     if (!q) throw new NotFoundException('题目不存在')
+    const nextOptionsJson = dto.optionsJson ?? q.optionsJson
+    this.parseOptionsJson(nextOptionsJson)
     return this.prisma.examQuestion.update({
       where: { id: questionId },
       data: {
         ...(dto.seq !== undefined && { seq: dto.seq }),
         ...(dto.type && { type: dto.type as QuestionType }),
         ...(dto.stem && { stem: dto.stem }),
-        ...(dto.optionsJson && { optionsJson: dto.optionsJson }),
+        ...(dto.optionsJson !== undefined && { optionsJson: dto.optionsJson }),
         ...(dto.answer && { answer: dto.answer }),
         ...(dto.analysis !== undefined && { analysis: dto.analysis }),
         ...(dto.score !== undefined && { score: dto.score }),
@@ -114,6 +145,10 @@ export class ExamService {
     const exam = await this.prisma.exam.findUnique({ where: { id: examId } })
     if (!exam) throw new NotFoundException('考试不存在')
     if (exam.status !== ExamStatus.draft) throw new BadRequestException('考试已开放，不能导入题目')
+    const issues = questions.flatMap((q) => this.validateExamQuestion(q))
+    if (issues.length > 0) {
+      throw new BadRequestException(`题目校验未通过：${issues.slice(0, 5).join('；')}${issues.length > 5 ? `等${issues.length}项` : ''}`)
+    }
     const data = questions.map((q) => ({
       examId,
       seq: q.seq,
@@ -157,15 +192,7 @@ export class ExamService {
 
     const issues: string[] = []
     for (const q of exam.questions) {
-      if (!q.answer || !q.answer.trim()) {
-        issues.push(`第${q.seq}题缺少答案`)
-      }
-      if (q.isObjective) {
-        const options = q.optionsJson ? JSON.parse(q.optionsJson) : []
-        if (!Array.isArray(options) || options.length < 2) {
-          issues.push(`第${q.seq}题选项不足`)
-        }
-      }
+      issues.push(...this.validateExamQuestion(q))
     }
     if (issues.length > 0) {
       throw new BadRequestException(`题目校验未通过：${issues.slice(0, 5).join('；')}${issues.length > 5 ? `等${issues.length}项` : ''}`)
@@ -191,7 +218,7 @@ export class ExamService {
   async listSessions(examId: string) {
     return this.prisma.examSession.findMany({
       where: { examId },
-      include: { user: { select: { nickname: true, openId: true } } },
+      include: { user: { select: { nickname: true, openId: true, avatarUrl: true, realName: true, className: true, phoneTail: true, wechatId: true } } },
       orderBy: { createdAt: 'desc' },
     })
   }
@@ -239,7 +266,7 @@ export class ExamService {
     const session = await this.prisma.examSession.findFirst({
       where: { id: sessionId, examId },
       include: {
-        user: { select: { nickname: true, openId: true } },
+        user: { select: { nickname: true, openId: true, realName: true, className: true, phoneTail: true, wechatId: true } },
         answers: { include: { question: true } },
         comment: true,
       },

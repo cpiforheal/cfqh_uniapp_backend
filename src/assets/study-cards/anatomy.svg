@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="none">
+  <g opacity="0.85">
+    <!-- Spine/vertebrae stylized -->
+    <rect x="52" y="16" width="16" height="8" rx="4" fill="white" opacity="0.9"/>
+    <rect x="50" y="28" width="20" height="8" rx="4" fill="white" opacity="0.8"/>
+    <rect x="48" y="40" width="24" height="8" rx="4" fill="white" opacity="0.7"/>
+    <rect x="50" y="52" width="20" height="8" rx="4" fill="white" opacity="0.6"/>
+    <rect x="52" y="64" width="16" height="8" rx="4" fill="white" opacity="0.5"/>
+    <!-- Pelvis hint -->
+    <path d="M38 80 Q60 95 82 80" stroke="white" stroke-width="3" fill="none" opacity="0.5" stroke-linecap="round"/>
+    <!-- Ribs hint -->
+    <path d="M42 34 Q30 40 34 52" stroke="white" stroke-width="2" fill="none" opacity="0.4" stroke-linecap="round"/>
+    <path d="M78 34 Q90 40 86 52" stroke="white" stroke-width="2" fill="none" opacity="0.4" stroke-linecap="round"/>
+  </g>
+</svg>
