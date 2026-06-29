@@ -1,4 +1,4 @@
-const API_BASE = process.env.UMI_APP_API_BASE || 'http://127.0.0.1:3001/api'
+const API_BASE = process.env.UMI_APP_API_BASE || (process.env.NODE_ENV === 'production' ? '/api' : 'http://127.0.0.1:3001/api')
 const ADMIN_TOKEN_KEY = 'cfqh_admin_token'
 const ADMIN_SESSION_KEY = 'cfqh_admin_session'
 const DEFAULT_ADMIN_TOKEN = process.env.UMI_APP_DEFAULT_ADMIN_TOKEN || ''
