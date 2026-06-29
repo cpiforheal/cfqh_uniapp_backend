@@ -126,3 +126,83 @@
 .skip:active {
   color: $color-primary;
 }
+
+.privacyMask {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(15, 23, 42, 0.45);
+  box-sizing: border-box;
+}
+
+.privacyDialog {
+  width: 100%;
+  padding: 36px 32px 30px;
+  border-radius: $radius-lg;
+  background: #ffffff;
+  box-shadow: $shadow-float;
+  box-sizing: border-box;
+}
+
+.privacyTitle {
+  display: block;
+  color: $color-text-primary;
+  font-size: $font-title;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.privacyDesc {
+  display: block;
+  margin-top: 18px;
+  color: $color-text-regular;
+  font-size: $font-body;
+  line-height: 1.7;
+}
+
+.privacyLink {
+  display: inline-flex;
+  margin-top: 20px;
+  color: $color-primary;
+  font-size: $font-body;
+  font-weight: 700;
+}
+
+.privacyActions {
+  display: flex;
+  gap: 16px;
+  margin-top: 30px;
+}
+
+.privacyCancel,
+.privacyAgreeButton {
+  flex: 1;
+  height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-md;
+  font-size: $font-body;
+  font-weight: 700;
+  line-height: 84px;
+}
+
+.privacyCancel {
+  background: $color-bg-subtle;
+  color: $color-text-muted;
+}
+
+.privacyAgreeButton {
+  margin: 0;
+  padding: 0;
+  background: $color-primary;
+  color: #ffffff;
+}
+
+.privacyAgreeButton::after {
+  border: 0;
+}

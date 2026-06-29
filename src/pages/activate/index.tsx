@@ -119,7 +119,7 @@ export default function ActivatePage() {
         await refreshAuthorizedCache(latestStatus.data)
         Taro.showToast({ title: '账号已激活', icon: 'success' })
         setTimeout(() => {
-          Taro.navigateTo({ url: '/pages/sync-profile/index' })
+          Taro.switchTab({ url: '/pages/practice/index' })
         }, 600)
         return
       }
@@ -142,7 +142,7 @@ export default function ActivatePage() {
     await refreshAuthorizedCache(result)
     Taro.showToast({ title: '激活成功', icon: 'success' })
     setTimeout(() => {
-      Taro.navigateTo({ url: '/pages/sync-profile/index' })
+      Taro.switchTab({ url: '/pages/practice/index' })
     }, 600)
   }
 

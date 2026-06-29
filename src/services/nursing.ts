@@ -361,9 +361,9 @@ export async function loginWithWechatProfile() {
   return { ok: true, nickname: '微信用户', avatarUrl: '', profileSynced: false }
 }
 
-export async function syncProfile(fields: { realName?: string; className?: string; phoneTail?: string; wechatId?: string; nickname?: string }) {
+export async function syncProfile(fields: { realName?: string; className?: string; wechatId?: string; nickname?: string }) {
   await ensureLogin()
-  return request<{ id: string; realName: string | null; className: string | null; phoneTail: string | null; wechatId: string | null }>('/auth/update-profile', {
+  return request<{ id: string; realName: string | null; className: string | null; wechatId: string | null }>('/auth/update-profile', {
     method: 'POST',
     data: fields,
   })
@@ -615,7 +615,7 @@ export async function getProfileOverview(): Promise<ProfileOverview> {
   }
 
   const [me, mistakes] = await Promise.all([
-    request<{ nickname?: string; avatarUrl?: string; realName?: string | null; className?: string | null; phoneTail?: string | null; wechatId?: string | null; authorization?: { licenseToken?: { code: string }; expiresAt?: string } }>('/auth/me'),
+    request<{ nickname?: string; avatarUrl?: string; realName?: string | null; className?: string | null; wechatId?: string | null; authorization?: { licenseToken?: { code: string }; expiresAt?: string } }>('/auth/me'),
     request<Array<{ id: string }>>('/mistakes'),
   ])
 
@@ -629,7 +629,6 @@ export async function getProfileOverview(): Promise<ProfileOverview> {
     avatarUrl: me.avatarUrl,
     realName: me.realName || null,
     className: me.className || null,
-    phoneTail: me.phoneTail || null,
     wechatId: me.wechatId || null,
     authorization: {
       ...authorization,

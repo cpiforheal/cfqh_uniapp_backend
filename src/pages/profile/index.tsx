@@ -93,7 +93,6 @@ export default function ProfilePage() {
   const profileMetaItems = [
     data?.className,
     data?.wechatId ? `微信：${data.wechatId}` : '',
-    data?.phoneTail ? `尾号：${data.phoneTail}` : '',
   ].filter(Boolean)
 
   async function handleCopy() {

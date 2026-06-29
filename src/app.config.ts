@@ -1,4 +1,5 @@
 export default defineAppConfig({
+  __usePrivacyCheck__: true,
   pages: [
     'pages/practice/index',
     'pages/question-bank/index',

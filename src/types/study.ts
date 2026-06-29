@@ -204,7 +204,6 @@ export interface ProfileOverview {
   avatarUrl?: string
   realName?: string | null
   className?: string | null
-  phoneTail?: string | null
   wechatId?: string | null
   authorization: AuthorizationInfo
   practiceCount: number
